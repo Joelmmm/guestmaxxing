@@ -1,0 +1,298 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// CORE ENTITIES
+// -----------------------------------------------------------------------------
+
+model Restaurant {
+  id           String  @id @default(uuid())
+  name         String
+  timezone     String  @default("America/Santiago") // CRITICAL for date math
+  contactEmail String
+  contactPhone String?
+  isActive     Boolean @default(true)
+
+  // Relationships
+  diningAreas       DiningArea[]
+  reservations      Reservation[]
+  operatingHours    OperatingHours[]
+  scheduleOverrides ScheduleOverride[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// E.g., "Main Dining Room", "Patio", "Bar"
+
+model DiningArea {
+  id           String  @id @default(uuid())
+  restaurantId String
+  name         String
+  description  String?
+  isActive     Boolean @default(true)
+
+  // Relationships
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables     Table[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
+// The physical table where people sit
+
+model Table {
+  id           String  @id @default(uuid())
+  diningAreaId String
+  name         String // e.g., "Table 12" or "Booth A"
+  minCapacity  Int // Minimum party size to book this
+  maxCapacity  Int // Maximum party size allowed
+  isActive     Boolean @default(true)
+
+  // Relationships
+  diningArea   DiningArea           @relation(fields: [diningAreaId], references: [id], onDelete: Cascade)
+  reservations ReservationOnTable[] // Many-to-Many relationship
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([diningAreaId])
+}
+
+// The Guest profile (can be a registered user or just a walk-in record)
+
+model Guest {
+  id        String  @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String? @unique
+  phone     String?
+  notes     String? // E.g., "VIP", "Allergic to shellfish"
+
+  // Relationships
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+}
+
+// Simple Operating Hours
+
+model OperatingHours {
+  id           String @id @default(uuid())
+  restaurantId String
+  dayOfWeek    Int // 0 = Sunday, 1 = Monday, etc.
+  openTime     String // e.g., "17:00"
+  closeTime    String // e.g., "23:00"
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+// Overrides for holidays, special events, or emergency closures
+
+model ScheduleOverride {
+  id           String   @id @default(uuid())
+  restaurantId String
+  date         DateTime @db.Date
+  isClosed     Boolean  @default(false)
+  openTime     String?
+  closeTime    String?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, date])
+}
+
+// -----------------------------------------------------------------------------
+// THE LIFECODE: RESERVATIONS & AVAILABILITY
+// -----------------------------------------------------------------------------
+
+model Reservation {
+  id           String  @id @default(uuid())
+  restaurantId String
+  guestId      String? // Made Optional for GDPR Data Deletion (SetNull)
+
+  partySize       Int
+  reservationDate DateTime @db.Date // Just the YYYY-MM-DD
+  startTime       DateTime // The exact time they arrive (UTC mapped to timezone)
+  endTime         DateTime // Calculated based on turn times (e.g., +90 mins)
+
+  status         ReservationStatus @default(PENDING)
+  source         BookingSource     @default(ONLINE)
+  specialRequest String?
+  internalNotes  String? // For the host stand only
+
+  // Relationships
+  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  guest      Guest?               @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  tables     ReservationOnTable[] // Many-to-Many relationship
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indexes to make availability querying blazingly fast
+  @@index([restaurantId, reservationDate])
+  @@index([guestId])
+  @@index([startTime, endTime])
+}
+
+// Junction table for many-to-many relationship between Reservation and Table
+
+model ReservationOnTable {
+  reservationId String
+  tableId       String
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  table       Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@id([reservationId, tableId])
+  @@index([tableId])
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS (State Machines)
+// -----------------------------------------------------------------------------
+
+enum ReservationStatus {
+  PENDING // Locked conceptually, but maybe awaiting deposit payment
+  CONFIRMED // Booked and ready
+  WAITLISTED // In the waitlist queue
+  ARRIVED // Guest is in the building
+  PARTIALLY_ARRIVED // Some guests of the party are arrived
+  SEATED // Guest has arrived and is at the table
+  COMPLETED // Guest has left, table needs bussing/ready for next
+  CANCELLED // Guest canceled
+  NO_SHOW // Guest didn't show up
+  LATE // Guest is missing their reserved time slot
+}
+
+enum BookingSource {
+  ONLINE // Booked via the Next.js public widget
+  WALK_IN // Created manually by host
+  PHONE // Created manually by host
+}
+
+model User {
+  id            String       @id
+  name          String
+  email         String
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String
+  logo        String?
+  createdAt   DateTime
+  metadata    String?
+  members     Member[]
+  invitations Invitation[]
+
+  @@unique([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
