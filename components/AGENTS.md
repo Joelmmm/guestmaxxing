@@ -1,0 +1,1 @@
+phosphor-icons are imported as IconNameIcon, not IconName

@@ -1,0 +1,252 @@
+"use client"
+
+import { useState } from "react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import {
+  DotsThreeVerticalIcon,
+  UserIcon,
+  CheckIcon,
+  XCircleIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  PencilSimpleIcon,
+  TrashIcon
+} from "@phosphor-icons/react"
+import { format } from "date-fns"
+import { toast } from "sonner"
+import { ReservationDialog } from "./reservation-dialog"
+
+interface Reservation {
+  id: string
+  guest: {
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    phone?: string | null
+  } | null
+  partySize: number
+  startTime: string | Date
+  status: string
+  tables: { table: { name: string }; tableId: string }[]
+  reservationDate: string | Date
+  endTime: string | Date
+}
+
+export function ReservationsList({
+  initialData,
+  restaurantId
+}: {
+  initialData: Reservation[]
+  restaurantId: string
+}) {
+  const [reservations, setReservations] = useState(initialData)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+
+  const refreshData = async () => {
+    try {
+      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${format(new Date(), "yyyy-MM-dd")}`)
+      if (res.ok) {
+        const data = await res.json()
+        setReservations(data)
+      }
+    } catch (err) {
+      console.error("Failed to refresh data", err)
+    }
+  }
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/reservations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (res.ok) {
+        setReservations(prev =>
+          prev.map(r => r.id === id ? { ...r, status: newStatus } : r)
+        )
+        toast.success(`Status updated to ${newStatus}`)
+      } else {
+        toast.error("Failed to update status")
+      }
+    } catch (err) {
+      toast.error("An error occurred")
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this reservation?")) return
+
+    try {
+      const res = await fetch(`/api/reservations/${id}`, {
+        method: "DELETE",
+      })
+
+      if (res.ok) {
+        setReservations(prev => prev.filter(r => r.id !== id))
+        toast.success("Reservation deleted")
+      } else {
+        toast.error("Failed to delete reservation")
+      }
+    } catch (err) {
+      toast.error("An error occurred")
+    }
+  }
+
+  const handleEdit = (reservation: Reservation) => {
+    setSelectedReservation(reservation)
+    setIsDialogOpen(true)
+  }
+
+  const handleAdd = () => {
+    setSelectedReservation(null)
+    setIsDialogOpen(true)
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "CONFIRMED": return <Badge variant="outline" className="border-blue-500 text-blue-500">Confirmed</Badge>
+      case "ARRIVED": return <Badge variant="outline" className="border-amber-500 text-amber-500">Arrived</Badge>
+      case "SEATED": return <Badge variant="outline" className="border-emerald-500 text-emerald-500">Seated</Badge>
+      case "COMPLETED": return <Badge variant="secondary">Completed</Badge>
+      case "CANCELLED": return <Badge variant="destructive">Cancelled</Badge>
+      default: return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button onClick={handleAdd} size="sm" className="gap-2">
+          <PlusIcon className="size-4" />
+          Add Reservation
+        </Button>
+      </div>
+
+      <div className="rounded-md border bg-card overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Guest</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead>Table</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {reservations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center">
+                  No reservations for today.
+                </TableCell>
+              </TableRow>
+            ) : (
+              reservations.map((res) => (
+                <TableRow key={res.id}>
+                  <TableCell className="font-medium">
+                    {format(new Date(res.startTime), "HH:mm")}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <UserIcon data-icon="inline-start" className="size-4 text-muted-foreground" />
+                      <span>
+                        {res.guest
+                          ? `${res.guest.firstName} ${res.guest.lastName}`
+                          : "Unknown Guest"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{res.partySize}</TableCell>
+                  <TableCell>
+                    {res.tables.map(t => t.table.name).join(", ")}
+                  </TableCell>
+                  <TableCell>
+                    {getStatusBadge(res.status)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <DotsThreeVerticalIcon className="size-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {res.status === "CONFIRMED" && (
+                          <DropdownMenuItem onClick={() => updateStatus(res.id, "ARRIVED")}>
+                            <CheckIcon data-icon="inline-start" className="size-4 mr-2" />
+                            Mark as Arrived
+                          </DropdownMenuItem>
+                        )}
+                        {(res.status === "CONFIRMED" || res.status === "ARRIVED") && (
+                          <DropdownMenuItem onClick={() => updateStatus(res.id, "SEATED")}>
+                            <ArrowRightIcon data-icon="inline-start" className="size-4 mr-2" />
+                            Seat Table
+                          </DropdownMenuItem>
+                        )}
+                        {res.status === "SEATED" && (
+                          <DropdownMenuItem onClick={() => updateStatus(res.id, "COMPLETED")}>
+                            <CheckIcon data-icon="inline-start" className="size-4 mr-2" />
+                            Complete
+                          </DropdownMenuItem>
+                        )}
+                        {res.status !== "CANCELLED" && res.status !== "COMPLETED" && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => updateStatus(res.id, "CANCELLED")}
+                          >
+                            <XCircleIcon data-icon="inline-start" className="size-4 mr-2" />
+                            Cancel
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleEdit(res)}>
+                          <PencilSimpleIcon data-icon="inline-start" className="size-4 mr-2" />
+                          Edit Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => handleDelete(res.id)}
+                        >
+                          <TrashIcon data-icon="inline-start" className="size-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <ReservationDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        restaurantId={restaurantId}
+        reservation={selectedReservation}
+        onSuccess={refreshData}
+      />
+    </div>
+  )
+}

@@ -90,31 +90,43 @@ model Guest {
   @@index([phone])
 }
 
-// Simple Operating Hours
-
+// Operating Hours (contains multiple slots for split shifts)
 model OperatingHours {
-  id           String @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   dayOfWeek    Int // 0 = Sunday, 1 = Monday, etc.
-  openTime     String // e.g., "17:00"
-  closeTime    String // e.g., "23:00"
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  slots        TimeSlot[] // One or many intervals for the day
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  @@unique([restaurantId, dayOfWeek])
 }
 
 // Overrides for holidays, special events, or emergency closures
-
 model ScheduleOverride {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
-  date         DateTime @db.Date
-  isClosed     Boolean  @default(false)
-  openTime     String?
-  closeTime    String?
-
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime   @db.Date
+  isClosed     Boolean    @default(false)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  slots        TimeSlot[] // Empty if isClosed = true
 
   @@index([restaurantId, date])
+}
+
+// Reusable time slot for operating hours and overrides
+model TimeSlot {
+  id        String @id @default(uuid())
+  openTime  String // e.g., "12:00"
+  closeTime String // e.g., "15:00"
+
+  // Relationships
+  operatingHoursId   String?
+  scheduleOverrideId String?
+  operatingHours     OperatingHours?   @relation(fields: [operatingHoursId], references: [id], onDelete: Cascade)
+  scheduleOverride   ScheduleOverride? @relation(fields: [scheduleOverrideId], references: [id], onDelete: Cascade)
+
+  @@index([operatingHoursId])
+  @@index([scheduleOverrideId])
 }
 
 // -----------------------------------------------------------------------------

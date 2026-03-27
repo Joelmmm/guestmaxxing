@@ -8,9 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/auth-client";
 
 export default function SignUpPage() {
+    const { data: session, isPending } = useSession();
     const router = useRouter();
+
+    if (session) {
+        router.push("/dashboard");
+        return null;
+    }
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -18,14 +25,24 @@ export default function SignUpPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-        const res = await signUp.email({ name, email, password });
-        if (res.error) {
-            alert(res.error.message);
-            setLoading(false);
-        } else {
-            router.push("/");
-        }
+        await signUp.email({
+            email,
+            password,
+            name,
+            callbackURL: "/dashboard"
+        }, {
+            onRequest: () => {
+                setLoading(true);
+            },
+            onSuccess: () => {
+                setLoading(false);
+                router.push("/dashboard");
+            },
+            onError: (ctx) => {
+                setLoading(false);
+                alert(ctx.error.message);
+            },
+        });
     };
 
     return (
@@ -58,7 +75,7 @@ export default function SignUpPage() {
                             <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
                             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div>
                         </div>
-                        <Button variant="outline" className="w-full" type="button" onClick={() => signIn.social({ provider: "google" })}>
+                        <Button variant="outline" className="w-full" type="button" onClick={() => signIn.social({ provider: "google", callbackURL: "/dashboard" })}>
                             Google
                         </Button>
                         <div className="text-center text-sm text-muted-foreground">
