@@ -33,10 +33,11 @@ export default async function ReservationsPage() {
       restaurantId: restaurant.id,
     },
     include: {
+      restaurant: { select: { timezone: true } },
       guest: true,
       tables: {
         include: {
-          table: true,
+          table: { select: { name: true } },
         },
       },
     },
@@ -54,7 +55,7 @@ export default async function ReservationsPage() {
         </p>
       </div>
 
-      <ReservationsList initialData={reservations} restaurantId={restaurant.id} />
+      <ReservationsList initialData={reservations} restaurantId={restaurant.id} restaurantTimezone={restaurant.timezone} />
     </div>
   )
 }

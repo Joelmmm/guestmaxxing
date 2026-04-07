@@ -42,7 +42,7 @@ interface RestaurantDialogProps {
   onOpenChange?: (open: boolean) => void
 }
 
-export function RestaurantDialog({ 
+export function RestaurantDialog({
   children,
   open: controlledOpen,
   onOpenChange: setControlledOpen
@@ -62,6 +62,8 @@ export function RestaurantDialog({
       contactEmail: "",
       contactPhone: "",
       timezone: "America/Santiago",
+      slug: "",
+      isActive: true,
     },
   })
 

@@ -17,6 +17,7 @@ datasource db {
 model Restaurant {
   id           String  @id @default(uuid())
   name         String
+  slug         String  @unique // URL-friendly identifier
   timezone     String  @default("America/Santiago") // CRITICAL for date math
   contactEmail String
   contactPhone String?

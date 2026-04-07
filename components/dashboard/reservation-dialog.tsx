@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { format } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
+import { parseDateForCalendar, getRestaurantTodayStr } from "@/lib/time-utils"
 import {
   Dialog,
   DialogContent,
@@ -24,13 +25,14 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Calendar as CalendarIcon, CircleNotch, Plus, X } from "@phosphor-icons/react"
+import { Calendar as CalendarIcon, CircleNotch } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 import { reservationSchema, type ReservationFormValues } from "@/lib/validations/reservation"
+
+import { Prisma } from "@/generated/browser"
 
 interface DiningArea {
   id: string
@@ -43,27 +45,47 @@ interface DiningArea {
   }[]
 }
 
+// Inferred from Prisma but allowing for string dates (JSON serialization)
+export type ReservationWithDetails = Omit<Prisma.ReservationGetPayload<{
+  include: {
+    restaurant: { select: { timezone: true } }
+    guest: true
+    tables: { 
+      include: {
+        table: { select: { name: true } }
+      }
+    }
+  }
+}>, "reservationDate" | "startTime" | "endTime"> & {
+  reservationDate: string | Date
+  startTime: string | Date
+  endTime?: string | Date
+}
+
 interface ReservationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   restaurantId: string
-  reservation?: any // If provided, we are in edit mode
+  restaurantTimezone: string
+  reservation?: ReservationWithDetails
   onSuccess: () => void
 }
+
+
 
 export function ReservationDialog({
   open,
   onOpenChange,
   restaurantId,
+  restaurantTimezone,
   reservation,
   onSuccess
 }: ReservationDialogProps) {
-  const [loading, setLoading] = useState(false)
   const [diningAreas, setDiningAreas] = useState<DiningArea[]>([])
   const [fetchingTables, setFetchingTables] = useState(false)
 
   const form = useForm<ReservationFormValues>({
-    resolver: zodResolver(reservationSchema) as any,
+    resolver: zodResolver(reservationSchema),
     defaultValues: {
       restaurantId,
       guestData: {
@@ -73,10 +95,14 @@ export function ReservationDialog({
         phone: reservation?.guest?.phone || "",
       },
       partySize: reservation?.partySize || 2,
-      reservationDate: reservation?.reservationDate ? new Date(reservation.reservationDate) : new Date(),
-      startTime: reservation?.startTime ? format(new Date(reservation.startTime), "HH:mm") : "19:00",
-      endTime: reservation?.endTime ? format(new Date(reservation.endTime), "HH:mm") : "21:00",
-      tableIds: reservation?.tables?.map((t: any) => t.tableId) || [],
+      reservationDate: reservation?.reservationDate
+        ? (typeof reservation.reservationDate === 'string'
+            ? reservation.reservationDate.split('T')[0]
+            : reservation.reservationDate.toISOString().split('T')[0])
+        : getRestaurantTodayStr(restaurantTimezone),
+      startTime: reservation?.startTime ? formatInTimeZone(reservation.startTime, reservation.restaurant.timezone, "HH:mm") : "19:00",
+      durationMins: 90,
+      tableIds: reservation?.tables?.map((t) => t.tableId) || [],
     },
   })
 
@@ -112,28 +138,24 @@ export function ReservationDialog({
           phone: reservation?.guest?.phone || "",
         },
         partySize: reservation?.partySize || 2,
-        reservationDate: reservation?.reservationDate ? new Date(reservation.reservationDate) : new Date(),
-        startTime: reservation?.startTime ? format(new Date(reservation.startTime), "HH:mm") : "19:00",
-        endTime: reservation?.endTime ? format(new Date(reservation.endTime), "HH:mm") : "21:00",
-        tableIds: reservation?.tables?.map((t: any) => t.tableId) || [],
+        reservationDate: reservation?.reservationDate
+          ? (typeof reservation.reservationDate === 'string'
+              ? reservation.reservationDate.split('T')[0]
+              : reservation.reservationDate.toISOString().split('T')[0])
+          : getRestaurantTodayStr(restaurantTimezone),
+        startTime: reservation?.startTime ? formatInTimeZone(reservation.startTime, reservation.restaurant.timezone, "HH:mm") : "19:00",
+        durationMins: 90,
+        tableIds: reservation?.tables?.map((t) => t.tableId) || [],
       })
     }
-  }, [open, reservation, form])
+  }, [open, reservation, form, restaurantId])
 
   const { isSubmitting } = form.formState
 
   const onSubmit = async (values: ReservationFormValues) => {
-    setLoading(true)
     try {
-      // Create date-time strings
-      const dateStr = format(values.reservationDate, "yyyy-MM-dd")
-      const startDateTime = new Date(`${dateStr}T${values.startTime}:00`)
-      const endDateTime = new Date(`${dateStr}T${values.endTime}:00`)
-
       const payload = {
         ...values,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
       }
 
       const url = reservation ? `/api/reservations/${reservation.id}` : `/api/reservations`
@@ -157,13 +179,13 @@ export function ReservationDialog({
           toast.error(errorText || "Something went wrong")
         }
       }
-    } catch (error) {
-      toast.error("Operation failed")
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Something went wrong")
     }
   }
 
   const toggleTable = (tableId: string) => {
-    const current = form.getValues("tableIds")
+    const current = form.getValues("tableIds") || []
     if (current.includes(tableId)) {
       form.setValue("tableIds", current.filter(id => id !== tableId))
     } else {
@@ -271,7 +293,7 @@ export function ReservationDialog({
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP")
+                              formatInTimeZone(parseDateForCalendar(field.value), "UTC", "PPP")
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -282,10 +304,16 @@ export function ReservationDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
+                          selected={field.value ? parseDateForCalendar(field.value) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(format(date, "yyyy-MM-dd"))
+                            } else {
+                              field.onChange("")
+                            }
+                          }}
                           disabled={(date) =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                            date < parseDateForCalendar(getRestaurantTodayStr(restaurantTimezone))
                           }
                           initialFocus
                         />
@@ -312,12 +340,12 @@ export function ReservationDialog({
 
               <FormField
                 control={form.control}
-                name="endTime"
+                name="durationMins"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>End</FormLabel>
+                    <FormLabel>Duration (mins)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 90)} value={field.value || 90} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -347,7 +375,7 @@ export function ReservationDialog({
                             {area.tables.map((table) => (
                               <Badge
                                 key={table.id}
-                                variant={form.watch("tableIds").includes(table.id) ? "default" : "outline"}
+                                variant={(form.watch("tableIds") || []).includes(table.id) ? "default" : "outline"}
                                 className="cursor-pointer transition-colors"
                                 onClick={() => toggleTable(table.id)}
                               >

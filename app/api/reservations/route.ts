@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { reservationSchema } from '@/lib/validations/reservation'
 import { validateBody } from '@/lib/api-utils'
+import { checkAvailability } from '@/lib/availability'
+import { Prisma } from '../../../generated/client'
+import { fromZonedTime } from 'date-fns-tz'
+import { toRestaurantDateFilter } from '@/lib/time-utils'
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +20,7 @@ export async function GET(req: Request) {
       where.restaurantId = restaurantId
     }
     if (date) {
-      where.reservationDate = new Date(date)
+      where.reservationDate = toRestaurantDateFilter(date)
     }
     if (status) {
       where.status = status
@@ -25,6 +29,9 @@ export async function GET(req: Request) {
     const reservations = await prisma.reservation.findMany({
       where,
       include: {
+        restaurant: {
+          select: { timezone: true },
+        },
         guest: {
           select: { firstName: true, lastName: true, email: true, phone: true },
         },
@@ -50,7 +57,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const validation = validateBody(reservationSchema, body)
-
     if (!validation.isValid) {
       return validation.response
     }
@@ -62,9 +68,33 @@ export async function POST(req: Request) {
       partySize,
       reservationDate,
       startTime,
-      endTime,
+      durationMins,
       tableIds,
     } = validation.data
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { timezone: true }
+    })
+
+    if (!restaurant) {
+      return new NextResponse('Restaurant not found', { status: 404 })
+    }
+
+    const localTimeStr = `${reservationDate} ${startTime}`
+    const absoluteStartTime = fromZonedTime(localTimeStr, restaurant.timezone)
+    const absoluteEndTime = new Date(absoluteStartTime.getTime() + (durationMins || 90) * 60_000)
+
+    if (absoluteStartTime < new Date()) {
+      return new NextResponse('Cannot make a reservation in the past', { status: 400 })
+    }
+
+    // Normalize guest email and phone to null if empty strings
+    // This is CRITICAL because Postgres allows multiple NULLs in a unique index, but NOT multiple empty strings.
+    if (guestData) {
+      if (!guestData.email?.trim()) guestData.email = undefined;
+      if (!guestData.phone?.trim()) guestData.phone = undefined;
+    }
 
     // 1. Resolve Guest
     let resolvedGuestId = guestId
@@ -96,62 +126,128 @@ export async function POST(req: Request) {
     }
 
     if (!resolvedGuestId && guestData) {
-       // Create guest even without unique identifiers (simplified for walk-ins)
-       const newGuest = await prisma.guest.create({
-          data: {
-            firstName: guestData.firstName,
-            lastName: guestData.lastName,
-            email: guestData.email,
-            phone: guestData.phone,
-          },
-        })
-        resolvedGuestId = newGuest.id
+      // Create guest even without unique identifiers (simplified for walk-ins)
+      const newGuest = await prisma.guest.create({
+        data: {
+          firstName: guestData.firstName,
+          lastName: guestData.lastName,
+          email: guestData.email,
+          phone: guestData.phone,
+        },
+      })
+      resolvedGuestId = newGuest.id
     }
 
     if (!resolvedGuestId) {
       return new NextResponse('Guest information is required', { status: 400 })
     }
 
-    // 2. Validate availability (Basic check for overlapping reservations on requested tables)
-    // In a real production app, this should be transactional and more robust.
-    const overlapping = await prisma.reservationOnTable.findFirst({
-      where: {
-        tableId: { in: tableIds },
-        reservation: {
-          OR: [
-            {
-              startTime: { lt: new Date(endTime) },
-              endTime: { gt: new Date(startTime) },
-            },
-          ],
-        },
-      },
-    })
+    // 2 & 3. Transactional validation and creation
+    let reservation;
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        reservation = await prisma.$transaction(async (tx) => {
+          let finalTableIds: string[] = []
 
-    if (overlapping) {
-      return new NextResponse('One or more tables are already booked for this time slot.', { status: 409 })
+          if (tableIds && tableIds.length > 0) {
+            // Specific table assignment (Manual Override)
+            const overlapping = await tx.reservationOnTable.findFirst({
+              where: {
+                tableId: { in: tableIds },
+                reservation: {
+                  status: { in: ['PENDING', 'CONFIRMED', 'WAITLISTED', 'ARRIVED', 'PARTIALLY_ARRIVED', 'SEATED'] },
+                  OR: [
+                    {
+                      startTime: { lt: absoluteEndTime },
+                      endTime: { gt: absoluteStartTime },
+                    },
+                  ],
+                },
+              },
+            })
+
+            if (overlapping) {
+              throw new Error('SPECIFIC_TABLES_BOOKED')
+            }
+            finalTableIds = tableIds
+          } else {
+            // Dynamic Table Assignment (Standard Booking)
+            const requestDate = reservationDate
+            const requestTime = startTime
+
+            const availability = await checkAvailability({
+              restaurantId,
+              date: requestDate,
+              time: requestTime,
+              partySize,
+              absoluteStartTime,
+            }, tx)
+
+            if (!availability.available || !availability.table) {
+              throw new Error('NO_TABLES_AVAILABLE')
+            }
+            finalTableIds = [availability.table.id]
+          }
+
+          // 3. Create Reservation
+          return await tx.reservation.create({
+            data: {
+              restaurantId,
+              guestId: resolvedGuestId,
+              partySize,
+              reservationDate: toRestaurantDateFilter(reservationDate),
+              startTime: absoluteStartTime,
+              endTime: absoluteEndTime,
+              status: 'CONFIRMED', // default for now
+              tables: {
+                create: finalTableIds.map((tid: string) => ({
+                  table: { connect: { id: tid } },
+                })),
+              },
+            },
+          })
+        }, { isolationLevel: 'Serializable' })
+
+        break; // transaction success, exit retry loop
+      } catch (error: any) {
+        if (error instanceof Error && (error.message === 'SPECIFIC_TABLES_BOOKED' || error.message === 'NO_TABLES_AVAILABLE')) {
+          throw error;
+        }
+
+        const isSerializationError =
+          (error && typeof error === 'object' && 'code' in error && error.code === 'P2034') ||
+          (error && typeof error === 'object' && ((error as any).cause?.kind === 'TransactionWriteConflict' || (error as any).cause?.originalCode === '40001')) ||
+          (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string' && (error as any).message.toLowerCase().includes('could not serialize access'));
+
+        if (isSerializationError) {
+          retries--;
+          if (retries === 0) {
+            throw new Error('CONCURRENT_BOOKING_FAILED');
+          }
+          // Small backoff before retry (20-50ms)
+          await new Promise(res => setTimeout(res, 20 + Math.random() * 30));
+          continue;
+        }
+
+        throw error;
+      }
     }
 
-    // 3. Create Reservation
-    const reservation = await prisma.reservation.create({
-      data: {
-        restaurantId,
-        guestId: resolvedGuestId,
-        partySize,
-        reservationDate,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        status: 'CONFIRMED', // default for now
-        tables: {
-          create: tableIds.map((tid: string) => ({
-            table: { connect: { id: tid } },
-          })),
-        },
-      },
-    })
-
     return NextResponse.json(reservation)
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof Error) {
+      if (error.message === 'SPECIFIC_TABLES_BOOKED') {
+        return new NextResponse('One or more specific tables are already booked for this time slot.', { status: 409 })
+      }
+      if (error.message === 'NO_TABLES_AVAILABLE') {
+        return new NextResponse('No tables available for this party size at the requested time.', { status: 409 })
+      }
+      if (error.message === 'CONCURRENT_BOOKING_FAILED') {
+        return new NextResponse('Transaction failed due to a concurrent booking. Please try again.', { status: 409 })
+      }
+    }
+
     console.error('[RESERVATIONS_POST]', error)
     return new NextResponse('Internal Error', { status: 500 })
   }

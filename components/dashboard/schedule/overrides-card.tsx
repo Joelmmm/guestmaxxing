@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from "@/components/ui/item"
 import { format, addDays, isSameDay } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
+import { parseDateForCalendar, getRestaurantTodayStr } from "@/lib/time-utils"
 import { DateRange } from "react-day-picker"
 import {
   Card,
@@ -24,7 +26,7 @@ import {
 } from "@/components/ui/card"
 
 export function OverridesCard() {
-  const { overrides, setSelectedOverrideDate, setView, onRemoveOverride } = useSchedule()
+  const { overrides, setSelectedOverrideDate, setView, onRemoveOverride, restaurantTimezone } = useSchedule()
 
   return (
     <Card className="mb-8">
@@ -52,7 +54,7 @@ export function OverridesCard() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {overrides
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                .sort((a, b) => new Date(`${a.date}T00:00:00.000Z`).getTime() - new Date(`${b.date}T00:00:00.000Z`).getTime())
                 .map((override, index) => (
                   <OverrideItem
                     key={index}
@@ -76,7 +78,7 @@ function AddOverrideDialog() {
   const [range, setRange] = React.useState<DateRange | undefined>()
   const [isClosed, setIsClosed] = React.useState(false)
   const [slots, setSlots] = React.useState<any[]>([{ openTime: "09:00", closeTime: "17:00" }])
-  const { onAddOverride, overrides } = useSchedule()
+  const { onAddOverride, overrides, restaurantTimezone } = useSchedule()
   const [open, setOpen] = React.useState(false)
 
   const handleAddSlot = () => setSlots([...slots, { openTime: "09:00", closeTime: "17:00" }])
@@ -131,7 +133,7 @@ function AddOverrideDialog() {
               mode="range"
               selected={range}
               onSelect={setRange}
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+              disabled={(date) => date < parseDateForCalendar(getRestaurantTodayStr(restaurantTimezone))}
             />
           </div>
           <div >
@@ -185,7 +187,7 @@ function AddOverrideDialog() {
 }
 
 function OverrideItem({ override, onRemove, onClick }: { override: any; onRemove: () => void; onClick: () => void }) {
-  const dateStr = format(new Date(override.date), "MMM d")
+  const dateStr = formatInTimeZone(new Date(`${override.date}T00:00:00.000Z`), "UTC", "MMM d")
 
   return (
     <Item variant="outline" size="xs" onClick={onClick}>

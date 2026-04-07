@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { startOfDay, endOfDay } from 'date-fns'
+import { getRestaurantDayBounds } from '@/lib/time-utils'
 
 export async function GET(req: Request) {
   try {
@@ -11,9 +11,17 @@ export async function GET(req: Request) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
 
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { timezone: true }
+    })
+
+    if (!restaurant) {
+      return new NextResponse('Restaurant not found', { status: 404 })
+    }
+
+    const { start, end } = getRestaurantDayBounds(restaurant.timezone)
     const today = new Date()
-    const start = startOfDay(today)
-    const end = endOfDay(today)
 
     const reservations = await prisma.reservation.findMany({
       where: {

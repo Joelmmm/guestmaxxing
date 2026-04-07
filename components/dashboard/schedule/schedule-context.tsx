@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { OperatingHoursFormValues, TimeSlotFormValues } from "@/lib/validations/operating-hours"
 
 interface ScheduleContextType {
@@ -28,24 +29,63 @@ interface ScheduleContextType {
   setView: (view: "weekly" | "override") => void
   selectedOverrideDate: Date | null
   setSelectedOverrideDate: (date: Date | null) => void
+
+  // Restaurant
+  restaurantTimezone: string
+
+  // Save State
+  isDirty: boolean
+  isPending: boolean
+  saveHours: () => Promise<void>
 }
 
 const ScheduleContext = React.createContext<ScheduleContextType | undefined>(undefined)
 
 export function ScheduleProvider({ 
   children,
+  restaurantId,
+  restaurantTimezone,
   initialData,
   initialOverrides = []
 }: { 
   children: React.ReactNode
+  restaurantId: string
+  restaurantTimezone: string
   initialData: OperatingHoursFormValues[]
   initialOverrides?: any[]
 }) {
   const [data, setData] = React.useState<OperatingHoursFormValues[]>(initialData)
+  const [savedData, setSavedData] = React.useState<OperatingHoursFormValues[]>(initialData)
   const [overrides, setOverrides] = React.useState<any[]>(initialOverrides)
   const [activeDay, setActiveDay] = React.useState<number | null>(null)
   const [view, setView] = React.useState<"weekly" | "override">("weekly")
   const [selectedOverrideDate, setSelectedOverrideDate] = React.useState<Date | null>(null)
+  const [isPending, setIsPending] = React.useState(false)
+
+  const isDirty = React.useMemo(() => {
+    return JSON.stringify(data) !== JSON.stringify(savedData)
+  }, [data, savedData])
+
+  const saveHours = async () => {
+    if (!isDirty) return
+    setIsPending(true)
+    try {
+      const validData = data.filter(d => d.slots && d.slots.length > 0)
+      const response = await fetch(`/api/restaurants/${restaurantId}/operating-hours`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "HOURS_BATCH", data: validData }),
+      })
+      if (!response.ok) throw new Error("Failed to save hours")
+      setSavedData(data)
+      toast.success("Schedule updated successfully")
+    } catch (error) {
+      console.error("Save error:", error)
+      toast.error("Failed to save schedule")
+    } finally {
+      setIsPending(false)
+    }
+  }
 
   const onAddSlot = (day: number, slot: TimeSlotFormValues) => {
     setData(prev => {
@@ -115,7 +155,11 @@ export function ScheduleProvider({
       view,
       setView,
       selectedOverrideDate,
-      setSelectedOverrideDate
+      setSelectedOverrideDate,
+      isDirty,
+      isPending,
+      saveHours,
+      restaurantTimezone,
     }}>
       {children}
     </ScheduleContext.Provider>

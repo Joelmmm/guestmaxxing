@@ -3,7 +3,7 @@ import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
-import { startOfDay, endOfDay } from "date-fns"
+import { getRestaurantDayBounds } from "@/lib/time-utils"
 import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
 export default async function DashboardPage() {
@@ -32,9 +32,7 @@ export default async function DashboardPage() {
     )
   }
 
-  const today = new Date()
-  const start = startOfDay(today)
-  const end = endOfDay(today)
+  const { start, end } = getRestaurantDayBounds(restaurant.timezone)
 
   // Fetch initial data for SSR
   const reservations = await prisma.reservation.findMany({
@@ -46,10 +44,11 @@ export default async function DashboardPage() {
       },
     },
     include: {
+      restaurant: { select: { timezone: true } },
       guest: true,
       tables: {
         include: {
-          table: true,
+          table: { select: { name: true } },
         },
       },
     },
@@ -76,7 +75,7 @@ export default async function DashboardPage() {
 
       <div className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Today's Reservations</h2>
-        <ReservationsList initialData={reservations} restaurantId={restaurant.id} />
+        <ReservationsList initialData={reservations} restaurantId={restaurant.id} restaurantTimezone={restaurant.timezone} />
       </div>
     </div>
   )

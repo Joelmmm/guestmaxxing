@@ -67,6 +67,34 @@ export function hasOverlap(newOpen: string, newClose: string, existingSlots: { o
     const sStart = timeToMinutes(slot.openTime)
     const sEnd = timeToMinutes(slot.closeTime)
     // (StartA < EndB) && (EndA > StartB)
-    return start < sEnd && end > sStart
   })
 }
+
+/**
+ * Calculates how long a party will occupy a table based on party size.
+ * @param partySize Number of guests
+ * @returns Duration in minutes
+ */
+export function getTurnTime(partySize: number): number {
+  if (partySize <= 2) return 75
+  if (partySize <= 4) return 90
+  if (partySize <= 6) return 120
+  return 150 // Large parties 7+
+}
+
+/**
+ * Parses "YYYY-MM-DD" and "HH:mm" into a UTC Date object
+ * assuming the strings already represent local time in the restaurant's timezone.
+ * Prisma requires Date objects for queries.
+ */
+export function combineDateAndTime(dateStr: string, timeStr: string): Date {
+  return new Date(`${dateStr}T${timeStr}:00.000Z`)
+}
+
+/**
+ * Adds minutes to an existing JS Date
+ */
+export function addMinutesToDate(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60000)
+}
+

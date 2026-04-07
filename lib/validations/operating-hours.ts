@@ -28,7 +28,37 @@ export const timeSlotSchema = z
 export const operatingHoursSchema = z.object({
   dayOfWeek: z.coerce.number().min(0).max(6),
   slots: z.array(timeSlotSchema).min(1, "At least one time slot is required"),
-})
+}).refine(
+  (data) => {
+    if (data.slots.length <= 1) return true;
+    
+    // Check for overlapping slots
+    // Sort slots by start time
+    const sortedSlots = [...data.slots].sort((a, b) => {
+      const startA = parseInt(a.openTime.replace(":", ""), 10);
+      const startB = parseInt(b.openTime.replace(":", ""), 10);
+      return startA - startB;
+    });
+
+    for (let i = 0; i < sortedSlots.length - 1; i++) {
+      const current = sortedSlots[i];
+      const next = sortedSlots[i + 1];
+      
+      const currentEnd = parseInt(current.closeTime.replace(":", ""), 10);
+      const nextStart = parseInt(next.openTime.replace(":", ""), 10);
+      
+      if (currentEnd > nextStart) {
+        return false; // Overlap found
+      }
+    }
+    return true;
+  },
+  {
+    message: "Time slots cannot overlap",
+    path: ["slots"],
+  }
+);
+
 
 export const scheduleOverrideSchema = z
   .object({

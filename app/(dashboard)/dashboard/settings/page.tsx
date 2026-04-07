@@ -53,6 +53,8 @@ export default async function SettingsPage() {
           <Separator />
 
           <ScheduleSection
+            restaurantId={restaurant.id}
+            restaurantTimezone={restaurant.timezone}
             initialData={restaurant.operatingHours as any}
             initialOverrides={restaurant.scheduleOverrides as any}
           />

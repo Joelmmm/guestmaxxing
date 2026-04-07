@@ -28,40 +28,30 @@ import {
   PencilSimpleIcon,
   TrashIcon
 } from "@phosphor-icons/react"
-import { format } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
+import { getRestaurantTodayStr } from "@/lib/time-utils"
 import { toast } from "sonner"
-import { ReservationDialog } from "./reservation-dialog"
+import { ReservationDialog, type ReservationWithDetails } from "./reservation-dialog"
 
-interface Reservation {
-  id: string
-  guest: {
-    firstName: string;
-    lastName: string;
-    email?: string | null;
-    phone?: string | null
-  } | null
-  partySize: number
-  startTime: string | Date
-  status: string
-  tables: { table: { name: string }; tableId: string }[]
-  reservationDate: string | Date
-  endTime: string | Date
-}
+// Using unified type from dialog component instead of local Reservation interface
 
 export function ReservationsList({
   initialData,
-  restaurantId
+  restaurantId,
+  restaurantTimezone,
 }: {
-  initialData: Reservation[]
+  initialData: ReservationWithDetails[]
   restaurantId: string
+  restaurantTimezone: string
 }) {
-  const [reservations, setReservations] = useState(initialData)
+  const [reservations, setReservations] = useState<ReservationWithDetails[]>(initialData)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null)
 
   const refreshData = async () => {
     try {
-      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${format(new Date(), "yyyy-MM-dd")}`)
+      const todayStr = getRestaurantTodayStr(restaurantTimezone)
+      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${todayStr}`)
       if (res.ok) {
         const data = await res.json()
         setReservations(data)
@@ -81,7 +71,7 @@ export function ReservationsList({
 
       if (res.ok) {
         setReservations(prev =>
-          prev.map(r => r.id === id ? { ...r, status: newStatus } : r)
+          prev.map(r => r.id === id ? { ...r, status: newStatus as any } : r)
         )
         toast.success(`Status updated to ${newStatus}`)
       } else {
@@ -91,7 +81,6 @@ export function ReservationsList({
       toast.error("An error occurred")
     }
   }
-
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this reservation?")) return
 
@@ -111,7 +100,7 @@ export function ReservationsList({
     }
   }
 
-  const handleEdit = (reservation: Reservation) => {
+  const handleEdit = (reservation: ReservationWithDetails) => {
     setSelectedReservation(reservation)
     setIsDialogOpen(true)
   }
@@ -164,7 +153,7 @@ export function ReservationsList({
               reservations.map((res) => (
                 <TableRow key={res.id}>
                   <TableCell className="font-medium">
-                    {format(new Date(res.startTime), "HH:mm")}
+                    {formatInTimeZone(res.startTime, res.restaurant.timezone, "HH:mm")}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -244,7 +233,8 @@ export function ReservationsList({
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         restaurantId={restaurantId}
-        reservation={selectedReservation}
+        restaurantTimezone={restaurantTimezone}
+        reservation={selectedReservation || undefined}
         onSuccess={refreshData}
       />
     </div>

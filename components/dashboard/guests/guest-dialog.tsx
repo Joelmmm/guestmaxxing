@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import * as z from "zod"
 import { Plus, User, Note } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -35,7 +34,7 @@ import { guestSchema, type GuestFormValues } from "@/lib/validations/guest"
 interface GuestDialogProps {
   children?: React.ReactNode
   guest?: {
-    id: String
+    id: string
     firstName: string
     lastName: string
     email?: string | null
@@ -116,8 +115,8 @@ export function GuestDialog({
       setCurrentOpen?.(false)
       if (!isEditing) form.reset()
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message || "Something went wrong. Please try again.")
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Something went wrong. Please try again.")
       console.error(error)
     } finally {
       setIsLoading(false)

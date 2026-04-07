@@ -8,14 +8,16 @@ import { OverridesCard } from "./overrides-card"
 import { OperatingHoursFormValues } from "@/lib/validations/operating-hours"
 
 interface ScheduleSectionProps {
+  restaurantId: string
+  restaurantTimezone: string
   initialData: OperatingHoursFormValues[]
   initialOverrides?: any[]
   className?: string
 }
 
-export function ScheduleSection({ initialData, initialOverrides = [], className }: ScheduleSectionProps) {
+export function ScheduleSection({ restaurantId, restaurantTimezone, initialData, initialOverrides = [], className }: ScheduleSectionProps) {
   return (
-    <ScheduleProvider initialData={initialData} initialOverrides={initialOverrides}>
+    <ScheduleProvider restaurantId={restaurantId} restaurantTimezone={restaurantTimezone} initialData={initialData} initialOverrides={initialOverrides}>
       <div className={cn("space-y-6", className)}>
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold tracking-tight">Operation & Schedule</h2>
@@ -25,7 +27,7 @@ export function ScheduleSection({ initialData, initialOverrides = [], className 
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 w-full overflow-hidden">
+          <div className="flex-1 w-full overflow-hidden mb4-">
             <ScheduleList />
           </div>
           <OverridesCard />

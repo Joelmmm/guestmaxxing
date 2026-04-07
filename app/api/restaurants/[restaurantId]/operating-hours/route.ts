@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateBody } from '@/lib/api-utils'
 import { operatingHoursSchema, scheduleOverrideSchema } from '@/lib/validations/operating-hours'
+import * as z from 'zod'
 
 interface OperatingHoursParams {
   params: Promise<{
@@ -129,6 +130,38 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
         })
         return NextResponse.json(override)
       }
+    } else if (type === 'HOURS_BATCH') {
+      const arraySchema = z.array(operatingHoursSchema)
+      const validation = validateBody(arraySchema, data)
+      if (!validation.isValid) return validation.response
+
+      const validHours = validation.data
+
+      // Delete existing hours and recreate
+      await prisma.$transaction([
+        prisma.operatingHours.deleteMany({
+          where: { restaurantId }
+        }),
+        ...validHours.map(hour => 
+          prisma.operatingHours.create({
+            data: {
+              restaurantId,
+              dayOfWeek: hour.dayOfWeek,
+              slots: {
+                create: hour.slots
+              }
+            }
+          })
+        )
+      ])
+
+      const newHours = await prisma.operatingHours.findMany({
+        where: { restaurantId },
+        include: { slots: true },
+        orderBy: { dayOfWeek: 'asc' },
+      })
+      
+      return NextResponse.json(newHours)
     }
 
     return new NextResponse('Invalid type', { status: 400 })

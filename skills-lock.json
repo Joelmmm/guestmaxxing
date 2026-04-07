@@ -41,6 +41,11 @@
       "sourceType": "github",
       "computedHash": "e3ba3d760c5f4cc43b02a91fb8924f726c7818f95cc35d79d0a606ca622b72f5"
     },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "72e9ab72627e4fd8ed26a582e82309a98ecdc4f6e1c99418430ac05682c9e91d"
+    },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
@@ -50,6 +55,11 @@
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "computedHash": "9fb08ab39585f6f770d0c1c735f83e619aba2089d7ad50ba2a305eff715e08b9"
+    },
+    "vitest": {
+      "source": "pproenca/dot-skills",
+      "sourceType": "github",
+      "computedHash": "3cf0493db5554d6053369f3c3131a5a7a34f85d7e98aa1eb42114060fe25cc39"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",

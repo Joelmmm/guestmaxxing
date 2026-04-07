@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -185,7 +186,7 @@ export function GuestsList({ initialData }: GuestsListProps) {
                   <TableCell>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar size={14} />
-                      <span>{format(new Date(guest.createdAt), "MMM d, yyyy")}</span>
+                      <span>{formatInTimeZone(guest.createdAt, "UTC", "MMM d, yyyy")}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
