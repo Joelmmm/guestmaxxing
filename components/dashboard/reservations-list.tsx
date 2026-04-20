@@ -29,9 +29,10 @@ import {
   TrashIcon
 } from "@phosphor-icons/react"
 import { formatInTimeZone } from "date-fns-tz"
-import { getRestaurantTodayStr } from "@/lib/time-utils"
 import { toast } from "sonner"
 import { ReservationDialog, type ReservationWithDetails } from "./reservation-dialog"
+import { DateStrip } from "./date-strip"
+import { useEffect } from "react"
 
 // Using unified type from dialog component instead of local Reservation interface
 
@@ -39,19 +40,24 @@ export function ReservationsList({
   initialData,
   restaurantId,
   restaurantTimezone,
+  currentDateStr,
 }: {
   initialData: ReservationWithDetails[]
   restaurantId: string
   restaurantTimezone: string
+  currentDateStr: string
 }) {
   const [reservations, setReservations] = useState<ReservationWithDetails[]>(initialData)
+  
+  useEffect(() => {
+    setReservations(initialData)
+  }, [initialData])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null)
 
   const refreshData = async () => {
     try {
-      const todayStr = getRestaurantTodayStr(restaurantTimezone)
-      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${todayStr}`)
+      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${currentDateStr}`)
       if (res.ok) {
         const data = await res.json()
         setReservations(data)
@@ -122,8 +128,11 @@ export function ReservationsList({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="w-full sm:w-[300px]">
+          <DateStrip currentDateStr={currentDateStr} restaurantTimezone={restaurantTimezone} />
+        </div>
         <Button onClick={handleAdd} size="sm" className="gap-2">
           <PlusIcon className="size-4" />
           Add Reservation

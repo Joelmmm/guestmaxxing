@@ -3,9 +3,14 @@ import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
 import { getOrgRestaurant } from "@/lib/api-utils"
+import { getRestaurantTodayStr, toRestaurantDateFilter } from "@/lib/time-utils"
 import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
-export default async function ReservationsPage() {
+export default async function ReservationsPage(props: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const searchParams = await props.searchParams;
+  const dateParam = typeof searchParams.date === 'string' ? searchParams.date : undefined;
   const result = await getOrgRestaurant()
 
   if (!result) {
@@ -31,9 +36,17 @@ export default async function ReservationsPage() {
 
   const { restaurant } = result
 
+  // 1. Determine "Today" safely using the business timezone
+  const defaultDateStr = getRestaurantTodayStr(restaurant.timezone)
+  const targetDateStr = dateParam || defaultDateStr
+
+  // 2. Safely parse it for the Prisma @db.Date column
+  const dateFilter = toRestaurantDateFilter(targetDateStr)
+
   const reservations = await prisma.reservation.findMany({
     where: {
       restaurantId: restaurant.id,
+      reservationDate: dateFilter,
     },
     include: {
       restaurant: { select: { timezone: true } },
@@ -45,7 +58,7 @@ export default async function ReservationsPage() {
       },
     },
     orderBy: {
-      startTime: "desc",
+      startTime: "asc", 
     },
   })
 
@@ -58,7 +71,12 @@ export default async function ReservationsPage() {
         </p>
       </div>
 
-      <ReservationsList initialData={reservations} restaurantId={restaurant.id} restaurantTimezone={restaurant.timezone} />
+      <ReservationsList 
+        initialData={reservations} 
+        restaurantId={restaurant.id} 
+        restaurantTimezone={restaurant.timezone} 
+        currentDateStr={targetDateStr}
+      />
     </div>
   )
 }

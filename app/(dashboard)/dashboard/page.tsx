@@ -2,12 +2,17 @@ import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
 import { Button } from "@/components/ui/button"
-import { getRestaurantDayBounds } from "@/lib/time-utils"
+import { getRestaurantTodayStr, toRestaurantDateFilter } from "@/lib/time-utils"
 import { getOrgRestaurant } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const searchParams = await props.searchParams;
+  const dateParam = typeof searchParams.date === 'string' ? searchParams.date : undefined;
+  
   const result = await getOrgRestaurant()
   if (!result) {
     return (
@@ -31,16 +36,15 @@ export default async function DashboardPage() {
   }
 
   const { restaurant } = result
-  const { start, end } = getRestaurantDayBounds(restaurant.timezone)
+  
+  const targetDateStr = dateParam || getRestaurantTodayStr(restaurant.timezone)
+  const dateFilter = toRestaurantDateFilter(targetDateStr)
 
   // Fetch initial data for SSR
   const reservations = await prisma.reservation.findMany({
     where: {
       restaurantId: restaurant.id,
-      reservationDate: {
-        gte: start,
-        lte: end,
-      },
+      reservationDate: dateFilter,
     },
     include: {
       restaurant: { select: { timezone: true } },
@@ -73,8 +77,15 @@ export default async function DashboardPage() {
       <SummaryCards restaurantId={restaurant.id} />
 
       <div className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Today's Reservations</h2>
-        <ReservationsList initialData={reservations} restaurantId={restaurant.id} restaurantTimezone={restaurant.timezone} />
+        <h2 className="text-xl font-semibold">
+          {dateParam ? "Reservations" : "Today's Reservations"}
+        </h2>
+        <ReservationsList 
+          initialData={reservations} 
+          restaurantId={restaurant.id} 
+          restaurantTimezone={restaurant.timezone} 
+          currentDateStr={targetDateStr}
+        />
       </div>
     </div>
   )
