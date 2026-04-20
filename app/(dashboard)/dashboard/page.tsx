@@ -2,16 +2,14 @@ import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
 import { Button } from "@/components/ui/button"
-import { prisma } from "@/lib/prisma"
 import { getRestaurantDayBounds } from "@/lib/time-utils"
+import { getOrgRestaurant } from "@/lib/api-utils"
+import { prisma } from "@/lib/prisma"
 import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
 export default async function DashboardPage() {
-  // Ideally we'd get the restaurantId from the current user's session/org
-  // For now, we'll pick the first one from the DB for demonstration.
-  const restaurant = await prisma.restaurant.findFirst()
-
-  if (!restaurant) {
+  const result = await getOrgRestaurant()
+  if (!result) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 min-h-[70vh] text-center max-w-md mx-auto">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
@@ -32,6 +30,7 @@ export default async function DashboardPage() {
     )
   }
 
+  const { restaurant } = result
   const { start, end } = getRestaurantDayBounds(restaurant.timezone)
 
   // Fetch initial data for SSR

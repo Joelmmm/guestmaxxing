@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkAvailability } from "@/lib/availability"
 import { availabilitySchema } from "@/lib/validations/availability"
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    const access = await verifyRestaurantAccess(validation.data.restaurantId);
+    if (!access.isAuthorized) return access.response;
 
     // Run the engine
     const result = await checkAvailability(validation.data)

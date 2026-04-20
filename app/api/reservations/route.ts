@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { reservationSchema } from '@/lib/validations/reservation'
-import { validateBody } from '@/lib/api-utils'
+import { validateBody, verifyRestaurantAccess } from '@/lib/api-utils'
 import { checkAvailability } from '@/lib/availability'
 import { Prisma } from '../../../generated/client'
 import { fromZonedTime } from 'date-fns-tz'
@@ -11,6 +11,14 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const restaurantId = searchParams.get('restaurantId')
+
+    if (!restaurantId) {
+      return new NextResponse('Restaurant ID is required', { status: 400 })
+    }
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
+
     const date = searchParams.get('date') // YYYY-MM-DD
     const status = searchParams.get('status')
 

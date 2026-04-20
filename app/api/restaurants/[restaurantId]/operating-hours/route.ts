@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 import { validateBody } from '@/lib/api-utils'
 import { operatingHoursSchema, scheduleOverrideSchema } from '@/lib/validations/operating-hours'
 import * as z from 'zod'
@@ -13,6 +14,10 @@ interface OperatingHoursParams {
 export async function GET(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
+    
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
+
     const hours = await prisma.operatingHours.findMany({
       where: { restaurantId },
       include: { slots: true },
@@ -43,6 +48,10 @@ export async function GET(req: Request, { params }: OperatingHoursParams) {
 export async function POST(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
+
     const body = await req.json()
     const { type, data } = body // type: 'HOURS' or 'OVERRIDE'
 

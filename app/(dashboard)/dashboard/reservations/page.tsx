@@ -2,12 +2,13 @@ import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
+import { getOrgRestaurant } from "@/lib/api-utils"
 import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
 export default async function ReservationsPage() {
-  const restaurant = await prisma.restaurant.findFirst()
-  
-  if (!restaurant) {
+  const result = await getOrgRestaurant()
+
+  if (!result) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 min-h-[70vh] text-center max-w-md mx-auto">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
@@ -27,6 +28,8 @@ export default async function ReservationsPage() {
       </div>
     )
   }
+
+  const { restaurant } = result
 
   const reservations = await prisma.reservation.findMany({
     where: {

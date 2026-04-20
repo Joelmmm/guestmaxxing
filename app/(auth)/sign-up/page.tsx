@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signUp, signIn } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,15 +13,18 @@ import { useSession } from "@/lib/auth-client";
 export default function SignUpPage() {
     const { data: session, isPending } = useSession();
     const router = useRouter();
-
-    if (session) {
-        router.push("/dashboard");
-        return null;
-    }
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (session) {
+            router.push("/dashboard");
+        }
+    }, [session, router]);
+
+    if (isPending || session) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

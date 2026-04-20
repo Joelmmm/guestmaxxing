@@ -13,9 +13,10 @@ interface ScheduleSectionProps {
   initialData: OperatingHoursFormValues[]
   initialOverrides?: any[]
   className?: string
+  canManage?: boolean
 }
 
-export function ScheduleSection({ restaurantId, restaurantTimezone, initialData, initialOverrides = [], className }: ScheduleSectionProps) {
+export function ScheduleSection({ restaurantId, restaurantTimezone, initialData, initialOverrides = [], className, canManage = false }: ScheduleSectionProps) {
   return (
     <ScheduleProvider restaurantId={restaurantId} restaurantTimezone={restaurantTimezone} initialData={initialData} initialOverrides={initialOverrides}>
       <div className={cn("space-y-6", className)}>

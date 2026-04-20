@@ -53,7 +53,7 @@ interface Table {
   reservations: { reservation: { status: string; partySize: number } }[]
 }
 
-export function TableStatus({ restaurantId }: { restaurantId: string }) {
+export function TableStatus({ restaurantId, canManage = false }: { restaurantId: string, canManage?: boolean }) {
   const [diningAreas, setDiningAreas] = useState<DiningArea[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<{ type: 'table' | 'area', id: string } | null>(null)
@@ -131,7 +131,7 @@ export function TableStatus({ restaurantId }: { restaurantId: string }) {
           Start by adding a dining area to organize your tables.
         </p>
         <div className="mt-6">
-          <DiningAreaDialog restaurantId={restaurantId} />
+          {canManage && <DiningAreaDialog restaurantId={restaurantId} />}
         </div>
       </Card>
     )
@@ -154,27 +154,29 @@ export function TableStatus({ restaurantId }: { restaurantId: string }) {
               )}
             </div>
             
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <DotsThreeVertical size={20} weight="bold" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DiningAreaDialog restaurantId={restaurantId} initialData={area}>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <PencilSimple className="mr-2 size-4" /> Edit Area
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <DotsThreeVertical size={20} weight="bold" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DiningAreaDialog restaurantId={restaurantId} initialData={area}>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <PencilSimple className="mr-2 size-4" /> Edit Area
+                    </DropdownMenuItem>
+                  </DiningAreaDialog>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => setDeleteId({ type: 'area', id: area.id })}
+                  >
+                    <Trash className="mr-2 size-4" /> Delete Area
                   </DropdownMenuItem>
-                </DiningAreaDialog>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="text-destructive focus:text-destructive"
-                  onSelect={() => setDeleteId({ type: 'area', id: area.id })}
-                >
-                  <Trash className="mr-2 size-4" /> Delete Area
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
 
           <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
@@ -201,31 +203,33 @@ export function TableStatus({ restaurantId }: { restaurantId: string }) {
                          <TableIcon className="size-4" weight={isOccupied ? "fill" : "regular"} />
                        </div>
                        
-                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild>
-                           <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <DotsThreeVertical size={16} weight="bold" />
-                           </Button>
-                         </DropdownMenuTrigger>
-                         <DropdownMenuContent align="end">
-                           <TableDialog 
-                             restaurantId={restaurantId} 
-                             diningAreas={diningAreas.map(a => ({ id: a.id, name: a.name }))}
-                             initialData={table}
-                           >
-                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                               <PencilSimple className="mr-2 size-4" /> Edit
+                       {canManage && (
+                         <DropdownMenu>
+                           <DropdownMenuTrigger asChild>
+                             <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                               <DotsThreeVertical size={16} weight="bold" />
+                             </Button>
+                           </DropdownMenuTrigger>
+                           <DropdownMenuContent align="end">
+                             <TableDialog 
+                               restaurantId={restaurantId} 
+                               diningAreas={diningAreas.map(a => ({ id: a.id, name: a.name }))}
+                               initialData={table}
+                             >
+                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                 <PencilSimple className="mr-2 size-4" /> Edit
+                               </DropdownMenuItem>
+                             </TableDialog>
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setDeleteId({ type: 'table', id: table.id })}
+                              >
+                               <Trash className="mr-2 size-4" /> Delete
                              </DropdownMenuItem>
-                           </TableDialog>
-                           <DropdownMenuSeparator />
-                           <DropdownMenuItem 
-                              className="text-destructive focus:text-destructive"
-                              onSelect={() => setDeleteId({ type: 'table', id: table.id })}
-                            >
-                             <Trash className="mr-2 size-4" /> Delete
-                           </DropdownMenuItem>
-                         </DropdownMenuContent>
-                       </DropdownMenu>
+                           </DropdownMenuContent>
+                         </DropdownMenu>
+                       )}
                     </div>
 
                     <div className="flex flex-col items-center">
@@ -259,18 +263,20 @@ export function TableStatus({ restaurantId }: { restaurantId: string }) {
               )
             })}
             
-            <TableDialog 
-              restaurantId={restaurantId} 
-              diningAreas={diningAreas.map(a => ({ id: a.id, name: a.name }))}
-              initialData={undefined}
-            >
-              <button className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[140px] rounded-xl border border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all group/add">
-                <div className="p-2 rounded-full bg-muted group-hover/add:bg-primary/10">
-                  <Plus className="size-5" weight="bold" />
-                </div>
-                <span className="text-xs font-medium">Add Table</span>
-              </button>
-            </TableDialog>
+            {canManage && (
+              <TableDialog 
+                restaurantId={restaurantId} 
+                diningAreas={diningAreas.map(a => ({ id: a.id, name: a.name }))}
+                initialData={undefined}
+              >
+                <button className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[140px] rounded-xl border border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all group/add">
+                  <div className="p-2 rounded-full bg-muted group-hover/add:bg-primary/10">
+                    <Plus className="size-5" weight="bold" />
+                  </div>
+                  <span className="text-xs font-medium">Add Table</span>
+                </button>
+              </TableDialog>
+            )}
           </div>
         </div>
       ))}

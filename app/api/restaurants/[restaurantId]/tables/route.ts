@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 import { tableSchema } from '@/lib/validations/table'
 import { validateBody } from '@/lib/api-utils'
 
@@ -9,6 +10,10 @@ export async function GET(
 ) {
   try {
     const { restaurantId } = await params
+    
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
+
     const today = new Date()
     
     // Fetch dining areas with their tables and active reservations
@@ -64,6 +69,10 @@ export async function POST(
 ) {
   try {
     const { restaurantId } = await params
+    
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
+
     const body = await req.json()
     const validation = validateBody(tableSchema, body)
 

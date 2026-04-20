@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 
 interface DiningAreaDetailParams {
   params: Promise<{
@@ -15,6 +16,9 @@ export async function GET(req: Request, { params }: DiningAreaDetailParams) {
     if (!areaId) {
       return new NextResponse('Dining area ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
 
     const diningArea = await prisma.diningArea.findUnique({
       where: { id: areaId },
@@ -36,11 +40,14 @@ export async function GET(req: Request, { params }: DiningAreaDetailParams) {
 
 export async function PATCH(req: Request, { params }: DiningAreaDetailParams) {
   try {
-    const { areaId } = await params
+    const { restaurantId, areaId } = await params
     
     if (!areaId) {
       return new NextResponse('Dining area ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
 
     const body = await req.json()
     const { name, description, isActive } = body
@@ -63,11 +70,14 @@ export async function PATCH(req: Request, { params }: DiningAreaDetailParams) {
 
 export async function DELETE(req: Request, { params }: DiningAreaDetailParams) {
   try {
-    const { areaId } = await params
+    const { restaurantId, areaId } = await params
     
     if (!areaId) {
       return new NextResponse('Dining area ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
 
     const diningArea = await prisma.diningArea.delete({
       where: { id: areaId },

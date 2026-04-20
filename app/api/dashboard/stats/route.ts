@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getRestaurantDayBounds } from '@/lib/time-utils'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 
 export async function GET(req: Request) {
   try {
@@ -10,6 +11,9 @@ export async function GET(req: Request) {
     if (!restaurantId) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 
 interface RestaurantParams {
   params: Promise<{
@@ -14,6 +15,9 @@ export async function GET(req: Request, { params }: RestaurantParams) {
     if (!restaurantId) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
@@ -46,6 +50,9 @@ export async function PATCH(req: Request, { params }: RestaurantParams) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
 
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
+
     const body = await req.json()
     const validation = validateBody(restaurantSchema, body)
     
@@ -72,6 +79,9 @@ export async function DELETE(req: Request, { params }: RestaurantParams) {
     if (!restaurantId) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId, ['owner']);
+    if (!access.isAuthorized) return access.response;
 
     // Checking if it exists first
     const existing = await prisma.restaurant.findUnique({

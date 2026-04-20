@@ -9,7 +9,8 @@ import {
   UsersIcon,
   TableIcon,
   ChartLineUpIcon,
-  GearIcon
+  GearIcon,
+  UsersThreeIcon
 } from "@phosphor-icons/react"
 
 import {
@@ -25,6 +26,7 @@ import {
   SidebarFooter,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { OrganizationSwitcher } from "@/components/organization/organization-switcher"
 
 const items = [
   {
@@ -53,6 +55,11 @@ const items = [
     icon: ChartLineUpIcon,
   },
   {
+    title: "Team",
+    url: "/dashboard/team",
+    icon: UsersThreeIcon,
+  },
+  {
     title: "Settings",
     url: "/dashboard/settings",
     icon: GearIcon,
@@ -65,15 +72,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <SquaresFourIcon size={20} weight="fill" />
-          </div>
-          <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold">Reserva</span>
-            <span className="text-xs text-muted-foreground">Admin Dashboard</span>
-          </div>
-        </div>
+        <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

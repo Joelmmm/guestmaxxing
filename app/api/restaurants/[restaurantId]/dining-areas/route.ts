@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 import { diningAreaSchema } from '@/lib/validations/dining-area'
 import { validateBody } from '@/lib/api-utils'
 
@@ -16,6 +17,9 @@ export async function GET(req: Request, { params }: DiningAreaParams) {
     if (!restaurantId) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
 
     const diningAreas = await prisma.diningArea.findMany({
       where: { restaurantId },
@@ -42,6 +46,9 @@ export async function POST(req: Request, { params }: DiningAreaParams) {
     if (!restaurantId) {
       return new NextResponse('Restaurant ID is required', { status: 400 })
     }
+
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
 
     const body = await req.json()
     const validation = validateBody(diningAreaSchema, body)

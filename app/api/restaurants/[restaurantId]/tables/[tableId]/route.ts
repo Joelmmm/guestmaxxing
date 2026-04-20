@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyRestaurantAccess } from '@/lib/api-utils'
 
 interface TableDetailParams {
   params: Promise<{
@@ -11,6 +12,10 @@ interface TableDetailParams {
 export async function GET(req: Request, { params }: TableDetailParams) {
   try {
     const { restaurantId, tableId } = await params
+
+    const access = await verifyRestaurantAccess(restaurantId);
+    if (!access.isAuthorized) return access.response;
+
     const table = await prisma.table.findUnique({
       where: { id: tableId },
       include: {
@@ -31,7 +36,11 @@ export async function GET(req: Request, { params }: TableDetailParams) {
 
 export async function PATCH(req: Request, { params }: TableDetailParams) {
   try {
-    const { tableId } = await params
+    const { restaurantId, tableId } = await params
+    
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
+
     const body = await req.json()
     const { name, minCapacity, maxCapacity, isActive, diningAreaId } = body
 
@@ -55,7 +64,11 @@ export async function PATCH(req: Request, { params }: TableDetailParams) {
 
 export async function DELETE(req: Request, { params }: TableDetailParams) {
   try {
-    const { tableId } = await params
+    const { restaurantId, tableId } = await params
+
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
+    if (!access.isAuthorized) return access.response;
+
     const table = await prisma.table.delete({
       where: { id: tableId },
     })

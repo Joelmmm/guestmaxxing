@@ -1,27 +1,25 @@
-import { prisma } from "@/lib/prisma"
 import { ScheduleSection } from "@/components/dashboard/schedule/schedule-section"
 import { SettingsForm } from "@/components/dashboard/settings-form"
 import { Storefront, CalendarSlash } from "@phosphor-icons/react/dist/ssr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { getOrgRestaurant, getServerRestaurantAccess } from "@/lib/api-utils"
 
 export default async function SettingsPage() {
-  const restaurant = await prisma.restaurant.findFirst({
-    include: {
-      operatingHours: {
-        include: {
-          slots: true
-        }
+  const result = await getOrgRestaurant({
+    operatingHours: {
+      include: {
+        slots: true,
       },
-      scheduleOverrides: {
-        include: {
-          slots: true
-        }
-      }
-    }
+    },
+    scheduleOverrides: {
+      include: {
+        slots: true,
+      },
+    },
   })
 
-  if (!restaurant) {
+  if (!result) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 min-h-[70vh] text-center max-w-md mx-auto">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
@@ -37,6 +35,9 @@ export default async function SettingsPage() {
     )
   }
 
+  const { restaurant } = result
+  const { canManage, isOwner } = await getServerRestaurantAccess(restaurant.id)
+
   return (
     <div className="flex flex-col gap-8">
       <div className="space-y-2">
@@ -48,7 +49,7 @@ export default async function SettingsPage() {
 
       <div className="">
         <div className="md:col-span-2 lg:col-span-3 space-y-8">
-          <SettingsForm restaurant={restaurant} className="w-full" />
+          <SettingsForm restaurant={restaurant} className="w-full" canManage={canManage} />
 
           <Separator />
 
@@ -57,6 +58,7 @@ export default async function SettingsPage() {
             restaurantTimezone={restaurant.timezone}
             initialData={restaurant.operatingHours as any}
             initialOverrides={restaurant.scheduleOverrides as any}
+            canManage={canManage}
           />
         </div>
 
@@ -80,22 +82,24 @@ export default async function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-destructive/20 bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="text-lg text-destructive flex items-center gap-2">
-                <CalendarSlash size={20} />
-                Danger Zone
-              </CardTitle>
-              <CardDescription className="text-destructive/80">
-                Actions that cannot be undone.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <button className="text-sm text-destructive hover:underline font-medium">
-                Deactivate {restaurant.name}
-              </button>
-            </CardContent>
-          </Card>
+          {isOwner && (
+            <Card className="border-destructive/20 bg-destructive/5">
+              <CardHeader>
+                <CardTitle className="text-lg text-destructive flex items-center gap-2">
+                  <CalendarSlash size={20} />
+                  Danger Zone
+                </CardTitle>
+                <CardDescription className="text-destructive/80">
+                  Actions that cannot be undone.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <button className="text-sm text-destructive hover:underline font-medium">
+                  Deactivate {restaurant.name}
+                </button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

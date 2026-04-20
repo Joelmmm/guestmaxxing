@@ -3,10 +3,25 @@ import { prisma } from '@/lib/prisma'
 import { restaurantSchema } from '@/lib/validations/restaurant'
 import { validateBody } from '@/lib/api-utils'
 import { slugify } from '@/lib/utils'
+import { auth } from '@/lib/auth'
+import { headers } from 'next/headers'
 
 export async function GET() {
   try {
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+
+    if (!session) return new NextResponse('Unauthorized', { status: 401 })
+
+    const organizationId = session.session.activeOrganizationId
+
+    if (!organizationId) {
+      return NextResponse.json([]) // No org selected = no restaurants
+    }
+
     const restaurants = await prisma.restaurant.findMany({
+      where: { organizationId },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
@@ -26,6 +41,18 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+
+    if (!session) return new NextResponse('Unauthorized', { status: 401 })
+
+    const organizationId = session.session.activeOrganizationId
+
+    if (!organizationId) {
+      return new NextResponse('You must select an organization before creating a restaurant', { status: 400 })
+    }
+
     const body = await req.json()
     const validation = validateBody(restaurantSchema, body)
 
@@ -55,6 +82,7 @@ export async function POST(req: Request) {
         timezone: timezone || 'America/Santiago',
         contactEmail: contactEmail,
         contactPhone: contactPhone || undefined,
+        organizationId,
       },
     })
 

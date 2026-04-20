@@ -33,9 +33,10 @@ import { cn } from "@/lib/utils"
 interface SettingsFormProps {
   restaurant: Restaurant
   className?: string
+  canManage?: boolean
 }
 
-export function SettingsForm({ restaurant, className }: SettingsFormProps) {
+export function SettingsForm({ restaurant, className, canManage = false }: SettingsFormProps) {
   const [isLoading, setIsLoading] = React.useState(false)
   const router = useRouter()
 
@@ -93,7 +94,7 @@ export function SettingsForm({ restaurant, className }: SettingsFormProps) {
                 <FormItem>
                   <FormLabel>Restaurant Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="The French Laundry" {...field} />
+                    <Input placeholder="The French Laundry" disabled={!canManage} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -106,7 +107,7 @@ export function SettingsForm({ restaurant, className }: SettingsFormProps) {
                 <FormItem>
                   <FormLabel>Contact Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="contact@restaurant.com" type="email" {...field} />
+                    <Input placeholder="contact@restaurant.com" type="email" disabled={!canManage} {...field} />
                   </FormControl>
                   <FormDescription>
                     Used for notifications and system alerts.
@@ -122,7 +123,7 @@ export function SettingsForm({ restaurant, className }: SettingsFormProps) {
                 <FormItem>
                   <FormLabel>Contact Phone</FormLabel>
                   <FormControl>
-                    <Input placeholder="+1 (555) 000-0000" {...field} />
+                    <Input placeholder="+1 (555) 000-0000" disabled={!canManage} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,7 +135,7 @@ export function SettingsForm({ restaurant, className }: SettingsFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Timezone</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!canManage}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a timezone" />
@@ -169,17 +170,20 @@ export function SettingsForm({ restaurant, className }: SettingsFormProps) {
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
+                      disabled={!canManage}
                     />
                   </FormControl>
                 </FormItem>
               )}
             />
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
+            {canManage && (
+              <div className="flex justify-end pt-4">
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            )}
           </form>
         </Form>
       </CardContent>
