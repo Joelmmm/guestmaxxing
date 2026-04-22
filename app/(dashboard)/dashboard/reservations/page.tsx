@@ -1,5 +1,6 @@
 import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
+import { PublicLinkMenu } from "@/components/dashboard/public-link-menu"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
 import { getOrgRestaurant } from "@/lib/api-utils"
@@ -64,11 +65,16 @@ export default async function ReservationsPage(props: {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Reservations</h1>
-        <p className="text-muted-foreground">
-          Manage all guest bookings.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">Reservations</h1>
+          <p className="text-muted-foreground">
+            Manage all guest bookings.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <PublicLinkMenu restaurantSlug={restaurant.slug} />
+        </div>
       </div>
 
       <ReservationsList 

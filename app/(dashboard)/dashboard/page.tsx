@@ -1,6 +1,7 @@
 import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { ReservationsList } from "@/components/dashboard/reservations-list"
 import { RestaurantDialog } from "@/components/dashboard/restaurant-dialog"
+import { PublicLinkMenu } from "@/components/dashboard/public-link-menu"
 import { Button } from "@/components/ui/button"
 import { getRestaurantTodayStr, toRestaurantDateFilter } from "@/lib/time-utils"
 import { getOrgRestaurant } from "@/lib/api-utils"
@@ -70,6 +71,7 @@ export default async function DashboardPage(props: {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PublicLinkMenu restaurantSlug={restaurant.slug} />
           <RestaurantDialog />
         </div>
       </div>
