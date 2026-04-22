@@ -3,7 +3,7 @@ import * as z from "zod"
 import { auth } from "./auth"
 import { prisma } from "./prisma"
 import { headers } from "next/headers"
-import type { Prisma } from "@prisma/client"
+import type { Prisma } from "@/generated/client"
 
 /**
  * Resolves the restaurant that belongs to the currently active organization

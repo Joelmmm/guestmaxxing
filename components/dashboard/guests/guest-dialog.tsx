@@ -31,16 +31,11 @@ import { Textarea } from "@/components/ui/textarea"
 
 import { guestSchema, type GuestFormValues } from "@/lib/validations/guest"
 
+import type { Guest } from "@/generated/client"
+
 interface GuestDialogProps {
   children?: React.ReactNode
-  guest?: {
-    id: string
-    firstName: string
-    lastName: string
-    email?: string | null
-    phone?: string | null
-    notes?: string | null
-  }
+  guest?: Guest
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }

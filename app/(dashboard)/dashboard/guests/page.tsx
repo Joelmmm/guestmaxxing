@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma"
-import { Users } from "@phosphor-icons/react/dist/ssr"
+import { Users, Storefront } from "@phosphor-icons/react/dist/ssr"
 import { GuestsList } from "@/components/dashboard/guests/guests-list"
 import { GuestDialog } from "@/components/dashboard/guests/guest-dialog"
+import { GuestsFilters } from "@/components/dashboard/guests/guests-filters"
 import { getOrgRestaurant } from "@/lib/api-utils"
-import { Storefront } from "@phosphor-icons/react/dist/ssr"
+import { Prisma } from "@/generated/client"
 
-export default async function GuestsPage() {
+export default async function GuestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const result = await getOrgRestaurant()
 
   if (!result) {
@@ -25,27 +30,60 @@ export default async function GuestsPage() {
   }
 
   const { restaurant } = result
+  
+  // Parse Search Params
+  const resolvedSearchParams = await searchParams
+  const page = Number(resolvedSearchParams.page) || 1
+  const q = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : ""
+  const tab = typeof resolvedSearchParams.tab === "string" ? resolvedSearchParams.tab : "all"
+  
+  const take = 15
+  const skip = (page - 1) * take
 
-  // Fetch guests scoped to this restaurant only
-  const guests = await prisma.guest.findMany({
-    where: {
-      reservations: {
-        some: {
-          restaurantId: restaurant.id,
-        },
+  // Determine Prisma filters based on tab and query
+  const where: Prisma.GuestWhereInput = {
+    reservations: {
+      some: {
+        restaurantId: restaurant.id,
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      _count: {
-        select: {
-          reservations: true,
+    ...(q && {
+      OR: [
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
+      ],
+    }),
+    ...(tab === "notes" && {
+      notes: { not: null },
+    }),
+  }
+
+  let orderBy: Prisma.GuestOrderByWithRelationInput = { createdAt: "desc" }
+  if (tab === "vips") {
+    orderBy = { reservations: { _count: "desc" } }
+  }
+
+  // Fetch count and paginated data
+  const [totalGuests, guests] = await Promise.all([
+    prisma.guest.count({ where }),
+    prisma.guest.findMany({
+      where,
+      orderBy,
+      take,
+      skip,
+      include: {
+        _count: {
+          select: {
+            reservations: true,
+          },
         },
       },
-    },
-  })
+    }),
+  ])
+
+  const totalPages = Math.ceil(totalGuests / take)
 
   return (
     <div className="flex flex-col gap-8">
@@ -67,7 +105,12 @@ export default async function GuestsPage() {
       </div>
 
       <div className="grid gap-4">
-        <GuestsList initialData={guests} />
+        <GuestsFilters currentTab={tab} currentQuery={q} />
+        <GuestsList 
+          guests={guests} 
+          totalPages={totalPages}
+          currentPage={page}
+        />
       </div>
     </div>
   )

@@ -1,22 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { 
-  MagnifyingGlass, 
   DotsThreeVertical, 
   PencilSimple, 
   Trash, 
   Phone, 
   Envelope, 
   Calendar,
-  Note
+  Note,
+  CaretLeft,
+  CaretRight
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { format } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -47,41 +46,33 @@ import {
   AlertDialogTitle 
 } from "@/components/ui/alert-dialog"
 
-interface Guest {
-  id: string
-  firstName: string
-  lastName: string
-  email: string | null
-  phone: string | null
-  notes: string | null
-  createdAt: Date
-  _count?: {
-    reservations: number
+import type { Prisma, Guest } from "@/generated/client"
+
+export type GuestWithCount = Prisma.GuestGetPayload<{
+  include: {
+    _count: {
+      select: {
+        reservations: true
+      }
+    }
   }
-}
+}>
 
 interface GuestsListProps {
-  initialData: Guest[]
+  guests: GuestWithCount[]
+  totalPages: number
+  currentPage: number
 }
 
-export function GuestsList({ initialData }: GuestsListProps) {
-  const [data, setData] = React.useState<Guest[]>(initialData)
-  const [search, setSearch] = React.useState("")
-  const [isDeleting, setIsDeleting] = React.useState(false)
-  const [guestToDelete, setGuestToDelete] = React.useState<Guest | null>(null)
-  const [editingGuest, setEditingGuest] = React.useState<Guest | null>(null)
-  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
+export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
-  const filteredGuests = data.filter((guest) => {
-    const fullName = `${guest.firstName} ${guest.lastName}`.toLowerCase()
-    const searchLower = search.toLowerCase()
-    return (
-      fullName.includes(searchLower) ||
-      guest.email?.toLowerCase().includes(searchLower) ||
-      guest.phone?.includes(searchLower)
-    )
-  })
+  const [isDeleting, setIsDeleting] = React.useState(false)
+  const [guestToDelete, setGuestToDelete] = React.useState<GuestWithCount | null>(null)
+  const [editingGuest, setEditingGuest] = React.useState<GuestWithCount | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
 
   async function handleDelete() {
     if (!guestToDelete) return
@@ -96,7 +87,6 @@ export function GuestsList({ initialData }: GuestsListProps) {
       }
 
       toast.success("Guest deleted successfully")
-      setData(data.filter((g) => g.id !== guestToDelete.id))
       setGuestToDelete(null)
       router.refresh()
     } catch (error) {
@@ -107,21 +97,15 @@ export function GuestsList({ initialData }: GuestsListProps) {
     }
   }
 
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("page", newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search by name, email, or phone..." 
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <GuestDialog />
-      </div>
-
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
@@ -134,7 +118,7 @@ export function GuestsList({ initialData }: GuestsListProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredGuests.length === 0 ? (
+            {guests.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-48 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
@@ -144,7 +128,7 @@ export function GuestsList({ initialData }: GuestsListProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredGuests.map((guest) => (
+              guests.map((guest) => (
                 <TableRow key={guest.id} className="group cursor-default">
                   <TableCell>
                     <div className="flex flex-col">
@@ -225,6 +209,37 @@ export function GuestsList({ initialData }: GuestsListProps) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="gap-1"
+            >
+              <CaretLeft size={16} />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="gap-1"
+            >
+              Next
+              <CaretRight size={16} />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Guest Dialog */}
       <GuestDialog 

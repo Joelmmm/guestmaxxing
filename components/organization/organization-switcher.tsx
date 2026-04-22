@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 // Get the type of the active organization and the list of organizations
 const useOrganizations = () => {
+  const router = useRouter()
   const { data: activeOrg, isPending: isActivePending } = authClient.useActiveOrganization()
   const { data: orgs, isPending: isListPending } = authClient.useListOrganizations()
 
@@ -35,9 +36,11 @@ const useOrganizations = () => {
   // fires on first login or after a stale session — never on subsequent loads.
   React.useEffect(() => {
     if (!isPending && !activeOrg && orgs && orgs.length > 0) {
-      authClient.organization.setActive({ organizationId: orgs[0].id })
+      authClient.organization.setActive({ organizationId: orgs[0].id }).then(() => {
+        router.refresh()
+      })
     }
-  }, [isPending, activeOrg, orgs])
+  }, [isPending, activeOrg, orgs, router])
 
   return { activeOrg, orgs, isPending }
 }
