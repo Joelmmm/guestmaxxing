@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { updateReservation, deleteReservation } from '@/lib/services/reservations'
 
 interface ReservationDetailParams {
   params: Promise<{
@@ -39,36 +40,9 @@ export async function PATCH(req: Request, { params }: ReservationDetailParams) {
   try {
     const { reservationId } = await params
     const body = await req.json()
-    const { status, partySize, startTime, endTime, tableIds, internalNotes, specialRequest } = body
-
-    // 1. Basic update of the reservation itself
-    const data: any = {
-      status,
-      partySize: partySize ? parseInt(partySize) : undefined,
-      startTime: startTime ? new Date(startTime) : undefined,
-      endTime: endTime ? new Date(endTime) : undefined,
-      internalNotes,
-      specialRequest,
-    }
-
-    // Handle table updates (disconnect existing across junction, add new ones)
-    if (tableIds && tableIds.length > 0) {
-      // For simplicity, we remove existing and add new
-      await prisma.reservationOnTable.deleteMany({
-        where: { reservationId },
-      })
-      data.tables = {
-        create: tableIds.map((tid: string) => ({
-          table: { connect: { id: tid } },
-        })),
-      }
-    }
-
-    const reservation = await prisma.reservation.update({
-      where: { id: reservationId },
-      data,
-    })
-
+    
+    const reservation = await updateReservation(reservationId, body)
+    
     return NextResponse.json(reservation)
   } catch (error) {
     console.error('[RESERVATION_PATCH]', error)
@@ -79,10 +53,8 @@ export async function PATCH(req: Request, { params }: ReservationDetailParams) {
 export async function DELETE(req: Request, { params }: ReservationDetailParams) {
   try {
     const { reservationId } = await params
-    // Standard delete, cascade logic in schema takes care of junction entries
-    const reservation = await prisma.reservation.delete({
-      where: { id: reservationId },
-    })
+    
+    const reservation = await deleteReservation(reservationId)
 
     return NextResponse.json(reservation)
   } catch (error) {

@@ -31,6 +31,15 @@ Standardized API request handling is mandatory for consistency and security.
 - **Form Handling**: Use `react-hook-form` with `@hookform/resolvers/zod`.
 - **Schema Reuse**: Always import schemas from `lib/validations/`.
 - **Consistency**: Align field names in the form with the API payload. For example, reservations use a nested `guestData` object.
+- **Data Fetching (Anti-Pattern Avoidance)**: Do NOT duplicate server data into client state (`useState(initialData)` + `useEffect`). Client components should be "dumb" and rely on data passed directly from Server Components.
+- **Mutations (Server Actions)**: Trigger updates using Server Actions (`app/actions/`) wrapped in a `useTransition` hook instead of manually caching and using `fetch()`. The Server Action must execute the service logic and call `revalidatePath('/dashboard')` to natively stream the fresh data to the layout.
+
+### 4. The Service-Controller Architecture
+Business logic has been decoupled from the API routes ("Controllers") to create a clean separation of concerns and avoid duplicated code.
+
+- **Service Layer (`lib/services/`)**: ALL core business logic, database transactions (`prisma.$transaction`), and complex state transitions MUST live here as pure functions. E.g., `createReservation(data)` in `lib/services/reservations.ts`.
+- **API Routes (`app/api/`)**: Act STRICTLY as external-facing Controllers. They receive an HTTP `Request`, validate the payload, pass data to the service layer, and return an HTTP `Response`. No raw database manipulation!
+- **Server Actions (`app/actions/`)**: Act STRICTLY as internal UI bridges. They receive plain objects from forms, pass the data to the service layer, trigger Next.js cache invalidations (`revalidatePath`), and return `{ success, data, error }`.
 
 ## 📈 Project Progress
 

@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 import { reservationSchema, type ReservationFormValues } from "@/lib/validations/reservation"
+import { createReservationAction, updateReservationAction } from "@/app/actions/reservations"
 
 import { Prisma } from "@/generated/browser"
 
@@ -158,22 +159,20 @@ export function ReservationDialog({
         ...values,
       }
 
-      const url = reservation ? `/api/reservations/${reservation.id}` : `/api/reservations`
-      const method = reservation ? "PATCH" : "POST"
+      let result;
+      if (reservation) {
+        result = await updateReservationAction(reservation.id, payload)
+      } else {
+        result = await createReservationAction(payload)
+      }
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
+      if (result.success) {
         toast.success(reservation ? "Reservation updated" : "Reservation created")
         onSuccess()
         onOpenChange(false)
       } else {
-        const errorText = await response.text()
-        if (response.status === 409) {
+        const errorText = result.error
+        if (errorText.includes("already booked") || errorText.includes("No tables available")) {
           form.setError("tableIds", { message: errorText })
         } else {
           toast.error(errorText || "Something went wrong")

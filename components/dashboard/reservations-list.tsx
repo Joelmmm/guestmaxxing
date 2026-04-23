@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import {
   Table,
   TableBody,
@@ -32,12 +32,10 @@ import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "sonner"
 import { ReservationDialog, type ReservationWithDetails } from "./reservation-dialog"
 import { DateStrip } from "./date-strip"
-import { useEffect } from "react"
-
-// Using unified type from dialog component instead of local Reservation interface
+import { updateReservationAction, deleteReservationAction } from "@/app/actions/reservations"
 
 export function ReservationsList({
-  initialData,
+  initialData: reservations,
   restaurantId,
   restaurantTimezone,
   currentDateStr,
@@ -47,63 +45,32 @@ export function ReservationsList({
   restaurantTimezone: string
   currentDateStr: string
 }) {
-  const [reservations, setReservations] = useState<ReservationWithDetails[]>(initialData)
-  
-  useEffect(() => {
-    setReservations(initialData)
-  }, [initialData])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null)
+  const [isPending, startTransition] = useTransition()
 
-  const refreshData = async () => {
-    try {
-      const res = await fetch(`/api/reservations?restaurantId=${restaurantId}&date=${currentDateStr}`)
-      if (res.ok) {
-        const data = await res.json()
-        setReservations(data)
-      }
-    } catch (err) {
-      console.error("Failed to refresh data", err)
-    }
-  }
-
-  const updateStatus = async (id: string, newStatus: string) => {
-    try {
-      const res = await fetch(`/api/reservations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (res.ok) {
-        setReservations(prev =>
-          prev.map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-        )
+  const updateStatus = (id: string, newStatus: string) => {
+    startTransition(async () => {
+      const result = await updateReservationAction(id, { status: newStatus })
+      if (result.success) {
         toast.success(`Status updated to ${newStatus}`)
       } else {
-        toast.error("Failed to update status")
+        toast.error(result.error || "Failed to update status")
       }
-    } catch (err) {
-      toast.error("An error occurred")
-    }
+    })
   }
-  const handleDelete = async (id: string) => {
+
+  const handleDelete = (id: string) => {
     if (!window.confirm("Are you sure you want to delete this reservation?")) return
 
-    try {
-      const res = await fetch(`/api/reservations/${id}`, {
-        method: "DELETE",
-      })
-
-      if (res.ok) {
-        setReservations(prev => prev.filter(r => r.id !== id))
+    startTransition(async () => {
+      const result = await deleteReservationAction(id)
+      if (result.success) {
         toast.success("Reservation deleted")
       } else {
-        toast.error("Failed to delete reservation")
+        toast.error(result.error || "Failed to delete reservation")
       }
-    } catch (err) {
-      toast.error("An error occurred")
-    }
+    })
   }
 
   const handleEdit = (reservation: ReservationWithDetails) => {
@@ -133,7 +100,7 @@ export function ReservationsList({
         <div className="w-full sm:w-[300px]">
           <DateStrip currentDateStr={currentDateStr} restaurantTimezone={restaurantTimezone} />
         </div>
-        <Button onClick={handleAdd} size="sm" className="gap-2">
+        <Button onClick={handleAdd} size="sm" className="gap-2" disabled={isPending}>
           <PlusIcon className="size-4" />
           Add Reservation
         </Button>
@@ -160,7 +127,7 @@ export function ReservationsList({
               </TableRow>
             ) : (
               reservations.map((res) => (
-                <TableRow key={res.id}>
+                <TableRow key={res.id} className={isPending ? "opacity-50 pointer-events-none" : ""}>
                   <TableCell className="font-medium">
                     {formatInTimeZone(res.startTime, res.restaurant.timezone, "HH:mm")}
                   </TableCell>
@@ -184,7 +151,7 @@ export function ReservationsList({
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" disabled={isPending}>
                           <DotsThreeVerticalIcon className="size-5" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -244,7 +211,7 @@ export function ReservationsList({
         restaurantId={restaurantId}
         restaurantTimezone={restaurantTimezone}
         reservation={selectedReservation || undefined}
-        onSuccess={refreshData}
+        onSuccess={() => setIsDialogOpen(false)}
       />
     </div>
   )
