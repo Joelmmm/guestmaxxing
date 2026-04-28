@@ -1,38 +1,21 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+import { useState, useTransition, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
-import {
-  DotsThreeVerticalIcon,
-  UserIcon,
-  CheckIcon,
-  XCircleIcon,
-  ArrowRightIcon,
-  PlusIcon,
-  PencilSimpleIcon,
-  TrashIcon
-} from "@phosphor-icons/react"
-import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "sonner"
+import { PlusIcon } from "@phosphor-icons/react"
+import { TableRow, TableCell } from "@/components/ui/table"
 import { ReservationDialog, type ReservationWithDetails } from "./reservation-dialog"
 import { DateStrip } from "./date-strip"
 import { updateReservationAction, deleteReservationAction } from "@/app/actions/reservations"
+
+import { ReservationTable } from "./reservation-table"
+import { ReservationGroup } from "./reservation-group"
+import { ReservationRow } from "./reservation-row"
+import { ReservationActions } from "./reservation-actions"
+import { type ReservationDerivedState } from "./reservation-badge"
+
+type ReservationWithDerivedState = ReservationWithDetails & { derivedState: ReservationDerivedState }
 
 export function ReservationsList({
   initialData: reservations,
@@ -83,16 +66,61 @@ export function ReservationsList({
     setIsDialogOpen(true)
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "CONFIRMED": return <Badge variant="outline" className="border-blue-500 text-blue-500">Confirmed</Badge>
-      case "ARRIVED": return <Badge variant="outline" className="border-amber-500 text-amber-500">Arrived</Badge>
-      case "SEATED": return <Badge variant="outline" className="border-emerald-500 text-emerald-500">Seated</Badge>
-      case "COMPLETED": return <Badge variant="secondary">Completed</Badge>
-      case "CANCELLED": return <Badge variant="destructive">Cancelled</Badge>
-      default: return <Badge variant="outline">{status}</Badge>
+  // Derive UI States dynamically
+  const { actionRequired, activeFloor, upcoming, completed } = useMemo(() => {
+    const now = Date.now()
+    const FIFTEEN_MINS = 15 * 60 * 1000
+
+    const groups = {
+      actionRequired: [] as ReservationWithDerivedState[],
+      activeFloor: [] as ReservationWithDerivedState[],
+      upcoming: [] as ReservationWithDerivedState[],
+      completed: [] as ReservationWithDerivedState[],
     }
-  }
+
+    reservations.forEach(res => {
+      const startTime = new Date(res.startTime).getTime()
+      // If endTime is missing from details, we assume 90 mins from start
+      const endTime = res.endTime ? new Date(res.endTime).getTime() : startTime + 90 * 60 * 1000
+
+      let derivedState: ReservationDerivedState = res.status as ReservationDerivedState
+
+      if ((res.status === "CONFIRMED" || res.status === "PENDING") && now > startTime + FIFTEEN_MINS) {
+        derivedState = "LATE"
+        groups.actionRequired.push({ ...res, derivedState })
+      } else if (res.status === "SEATED" && now > endTime) {
+        derivedState = "OVERSTAYED"
+        groups.actionRequired.push({ ...res, derivedState })
+      } else if (res.status === "ARRIVED" || res.status === "SEATED") {
+        groups.activeFloor.push({ ...res, derivedState })
+      } else if (res.status === "CONFIRMED" || res.status === "PENDING") {
+        groups.upcoming.push({ ...res, derivedState })
+      } else {
+        groups.completed.push({ ...res, derivedState })
+      }
+    })
+
+    return groups
+  }, [reservations])
+
+  const renderRow = (res: ReservationWithDerivedState) => (
+    <ReservationRow
+      key={res.id}
+      reservation={res}
+      restaurantTimezone={restaurantTimezone}
+      derivedState={res.derivedState}
+      isPending={isPending}
+      actions={
+        <ReservationActions
+          reservation={res}
+          isPending={isPending}
+          onUpdateStatus={updateStatus}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      }
+    />
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,104 +134,41 @@ export function ReservationsList({
         </Button>
       </div>
 
-      <div className="rounded-md border bg-card overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Guest</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead>Table</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {reservations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  No reservations for today.
-                </TableCell>
-              </TableRow>
-            ) : (
-              reservations.map((res) => (
-                <TableRow key={res.id} className={isPending ? "opacity-50 pointer-events-none" : ""}>
-                  <TableCell className="font-medium">
-                    {formatInTimeZone(res.startTime, res.restaurant.timezone, "HH:mm")}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <UserIcon data-icon="inline-start" className="size-4 text-muted-foreground" />
-                      <span>
-                        {res.guest
-                          ? `${res.guest.firstName} ${res.guest.lastName}`
-                          : "Unknown Guest"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{res.partySize}</TableCell>
-                  <TableCell>
-                    {res.tables.map(t => t.table.name).join(", ")}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(res.status)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={isPending}>
-                          <DotsThreeVerticalIcon className="size-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {res.status === "CONFIRMED" && (
-                          <DropdownMenuItem onClick={() => updateStatus(res.id, "ARRIVED")}>
-                            <CheckIcon data-icon="inline-start" className="size-4 mr-2" />
-                            Mark as Arrived
-                          </DropdownMenuItem>
-                        )}
-                        {(res.status === "CONFIRMED" || res.status === "ARRIVED") && (
-                          <DropdownMenuItem onClick={() => updateStatus(res.id, "SEATED")}>
-                            <ArrowRightIcon data-icon="inline-start" className="size-4 mr-2" />
-                            Seat Table
-                          </DropdownMenuItem>
-                        )}
-                        {res.status === "SEATED" && (
-                          <DropdownMenuItem onClick={() => updateStatus(res.id, "COMPLETED")}>
-                            <CheckIcon data-icon="inline-start" className="size-4 mr-2" />
-                            Complete
-                          </DropdownMenuItem>
-                        )}
-                        {res.status !== "CANCELLED" && res.status !== "COMPLETED" && (
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => updateStatus(res.id, "CANCELLED")}
-                          >
-                            <XCircleIcon data-icon="inline-start" className="size-4 mr-2" />
-                            Cancel
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleEdit(res)}>
-                          <PencilSimpleIcon data-icon="inline-start" className="size-4 mr-2" />
-                          Edit Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => handleDelete(res.id)}
-                        >
-                          <TrashIcon data-icon="inline-start" className="size-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+      <ReservationTable>
+        {reservations.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={6} className="h-24 text-center">
+              No reservations for today.
+            </TableCell>
+          </TableRow>
+        ) : (
+          <>
+            {actionRequired.length > 0 && (
+              <ReservationGroup title="Action Required" variant="destructive">
+                {actionRequired.map(renderRow)}
+              </ReservationGroup>
             )}
-          </TableBody>
-        </Table>
-      </div>
+
+            {activeFloor.length > 0 && (
+              <ReservationGroup title="Active Floor">
+                {activeFloor.map(renderRow)}
+              </ReservationGroup>
+            )}
+
+            {upcoming.length > 0 && (
+              <ReservationGroup title="Upcoming">
+                {upcoming.map(renderRow)}
+              </ReservationGroup>
+            )}
+
+            {completed.length > 0 && (
+              <ReservationGroup title="Completed" variant="muted">
+                {completed.map(renderRow)}
+              </ReservationGroup>
+            )}
+          </>
+        )}
+      </ReservationTable>
 
       <ReservationDialog
         open={isDialogOpen}
