@@ -1,5 +1,3 @@
-"use client"
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   TrendUpIcon,
@@ -12,50 +10,83 @@ import {
   ChartLineUpIcon,
   ChartPieIcon,
   CalendarIcon,
-} from "@phosphor-icons/react"
+} from "@phosphor-icons/react/dist/ssr"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { getOrgRestaurant } from "@/lib/api-utils"
+import { getDashboardStats } from "@/lib/analytics/stats"
+import { getReservationTrends } from "@/lib/analytics/trends"
+import { ReservationTrendsChart } from "@/components/analytics/reservation-trends-chart"
+import { Storefront } from "@phosphor-icons/react/dist/ssr"
 
-const stats = [
-  {
-    title: "Total Reservations",
-    value: "1,284",
-    change: "+12.5%",
-    trend: "up",
-    icon: CalendarCheckIcon,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
-  },
-  {
-    title: "Average Party Size",
-    value: "3.4",
-    change: "+2.1%",
-    trend: "up",
-    icon: UsersIcon,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-  },
-  {
-    title: "Peak Hours",
-    value: "19:00 - 21:00",
-    change: "-4.5%",
-    trend: "down",
-    icon: ClockIcon,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-  },
-  {
-    title: "Returning Guests",
-    value: "24%",
-    change: "+3.2%",
-    trend: "up",
-    icon: TrendUpIcon,
-    color: "text-purple-500",
-    bg: "bg-purple-500/10",
-  },
-]
+export default async function AnalyticsPage(props: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const searchParams = await props.searchParams;
+  const daysParam = typeof searchParams.days === 'string' ? parseInt(searchParams.days) : 30;
 
-export default function AnalyticsPage() {
+  const result = await getOrgRestaurant();
+  if (!result) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-6 min-h-[70vh] text-center max-w-md mx-auto">
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
+          <Storefront size={40} weight="duotone" className="text-primary" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">No Restaurant Found</h1>
+          <p className="text-muted-foreground">
+            Get started by creating your first restaurant to manage analytics.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const { restaurant } = result;
+
+  // Fetch real stats
+  const data = await getDashboardStats(restaurant.id, daysParam);
+  const trendsData = await getReservationTrends(restaurant.id, restaurant.timezone, daysParam);
+
+  const stats = [
+    {
+      title: "Total Reservations",
+      value: data.totalReservations.value,
+      change: `${data.totalReservations.change > 0 ? '+' : ''}${data.totalReservations.change}%`,
+      trend: data.totalReservations.change >= 0 ? "up" : "down",
+      icon: CalendarCheckIcon,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+    },
+    {
+      title: "Average Party Size",
+      value: data.averagePartySize.value,
+      change: `${data.averagePartySize.change > 0 ? '+' : ''}${data.averagePartySize.change}%`,
+      trend: data.averagePartySize.change >= 0 ? "up" : "down",
+      icon: UsersIcon,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+    },
+    {
+      title: "Peak Hours",
+      value: data.peakHours.value,
+      change: `${data.peakHours.change > 0 ? '+' : ''}${data.peakHours.change}%`,
+      trend: data.peakHours.change >= 0 ? "up" : "down",
+      icon: ClockIcon,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+    },
+    {
+      title: "Returning Guests",
+      value: data.returningGuests.value,
+      change: `${data.returningGuests.change > 0 ? '+' : ''}${data.returningGuests.change}%`,
+      trend: data.returningGuests.change >= 0 ? "up" : "down",
+      icon: TrendUpIcon,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+    },
+  ]
+
   return (
     <div className="flex-1 space-y-4 p-6 lg:p-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between space-y-2">
@@ -67,8 +98,8 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm">
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Last 30 Days
+            <CalendarIcon data-icon="inline-start" />
+            Last {daysParam} Days
           </Button>
           <Button size="sm">Download Report</Button>
         </div>
@@ -91,7 +122,9 @@ export default function AnalyticsPage() {
                   {stat.trend === "up" ? <ArrowUpRightIcon className="mr-1 h-3 w-3" /> : <ArrowDownRightIcon className="mr-1 h-3 w-3" />}
                   {stat.change}
                 </span>
-                <span className="text-muted-foreground ml-1">from last month</span>
+                <span className="text-muted-foreground ml-1">
+                  from previous {daysParam} days
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -106,36 +139,11 @@ export default function AnalyticsPage() {
               Reservation Trends
             </CardTitle>
             <CardDescription>
-              Number of bookings per day over the last 4 weeks.
+              Number of bookings per day over the last {daysParam} days.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {/* Custom SVG Chart Placeholder for standard look */}
-            <div className="h-[240px] w-full mt-4 bg-muted/20 rounded-lg flex items-end justify-between p-4 overflow-hidden relative">
-              <div className="absolute inset-x-0 bottom-0 top-[20%] pointer-events-none opacity-10">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-full h-px bg-foreground mb-[20%]" />
-                ))}
-              </div>
-              {[...Array(14)].map((_, i) => (
-                <div key={i} className="w-[4%] h-full flex flex-col justify-end gap-1 group cursor-pointer">
-                  <div
-                    className="w-full bg-blue-500/40 hover:bg-blue-500 transition-all rounded-t-sm"
-                    style={{ height: `${Math.random() * 80 + 20}%` }}
-                  >
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground px-2 py-1 rounded text-[10px] shadow-sm whitespace-nowrap z-10 transition-opacity">
-                      {Math.floor(Math.random() * 50 + 10)} bookings
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-between text-xs text-muted-foreground px-1">
-              <span>Mar 12</span>
-              <span>Mar 19</span>
-              <span>Mar 26</span>
-              <span>Today</span>
-            </div>
+          <CardContent className="h-[300px] md:h-[400px]">
+            <ReservationTrendsChart data={trendsData} />
           </CardContent>
         </Card>
 
@@ -153,9 +161,9 @@ export default function AnalyticsPage() {
             <div className="flex flex-col items-center justify-center h-[240px]">
               <div className="relative size-40 group">
                 <svg className="size-full -rotate-90" viewBox="0 0 32 32">
-                  <circle r="16" cx="16" cy="16" fill="transparent" stroke="hsl(var(--muted))" strokeWidth="32" />
+                  <circle r="16" cx="16" cy="16" fill="transparent" stroke="var(--color-muted)" strokeWidth="32" />
                   <circle
-                    r="16" cx="16" cy="16" fill="transparent" stroke="hsl(var(--primary))" strokeWidth="32" strokeDasharray="65 100"
+                    r="16" cx="16" cy="16" fill="transparent" stroke="var(--color-primary)" strokeWidth="32" strokeDasharray="65 100"
                     className="transition-all duration-1000 group-hover:opacity-80"
                   />
                   <circle
