@@ -131,7 +131,7 @@ export default async function AnalyticsPage(props: {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="w-full">
         <Card className="md:col-span-4 border-muted/40">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
@@ -147,121 +147,6 @@ export default async function AnalyticsPage(props: {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-3 border-muted/40">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <ChartPieIcon className="mr-2 h-5 w-5 text-emerald-500" />
-              Area Distribution
-            </CardTitle>
-            <CardDescription>
-              Bookings by dining area today.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center h-[240px]">
-              <div className="relative size-40 group">
-                <svg className="size-full -rotate-90" viewBox="0 0 32 32">
-                  <circle r="16" cx="16" cy="16" fill="transparent" stroke="var(--color-muted)" strokeWidth="32" />
-                  <circle
-                    r="16" cx="16" cy="16" fill="transparent" stroke="var(--color-primary)" strokeWidth="32" strokeDasharray="65 100"
-                    className="transition-all duration-1000 group-hover:opacity-80"
-                  />
-                  <circle
-                    r="16" cx="16" cy="16" fill="transparent" stroke="rgb(16 185 129)" strokeWidth="32" strokeDasharray="30 100" strokeDashoffset="-65"
-                    className="transition-all duration-1000 group-hover:opacity-80"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center flex-col bg-background rounded-full m-[10%] shadow-inner">
-                  <span className="text-2xl font-bold">128</span>
-                  <span className="text-[10px] text-muted-foreground">Reservations</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mt-6 w-full">
-                <div className="flex items-center text-xs">
-                  <div className="size-3 rounded-full bg-primary mr-2" />
-                  <span className="text-muted-foreground flex-1">Main Room</span>
-                  <span className="font-medium">65%</span>
-                </div>
-                <div className="flex items-center text-xs">
-                  <div className="size-3 rounded-full bg-emerald-500 mr-2" />
-                  <span className="text-muted-foreground flex-1">Terrace</span>
-                  <span className="font-medium">30%</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="md:col-span-4 border-muted/40">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <ChartBarIcon className="mr-2 h-5 w-5 text-amber-500" />
-              Busiest Days of Week
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 pt-2">
-              {[
-                { day: "Saturday", percentage: 95, color: "bg-amber-500" },
-                { day: "Friday", percentage: 88, color: "bg-amber-500/80" },
-                { day: "Sunday", percentage: 75, color: "bg-amber-500/60" },
-                { day: "Thursday", percentage: 62, color: "bg-amber-500/40" },
-                { day: "Wednesday", percentage: 45, color: "bg-amber-500/30" },
-              ].map((item) => (
-                <div key={item.day} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium">{item.day}</span>
-                    <span className="text-muted-foreground">{item.percentage}% avg. occupancy</span>
-                  </div>
-                  <div className="h-2 w-full bg-muted/30 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${item.color} rounded-full transition-all duration-1000`}
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="md:col-span-3 border-muted/40">
-          <CardHeader>
-            <CardTitle className="text-lg">Recent Feedback</CardTitle>
-            <CardDescription>Latest guest ratings and comments.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="size-8 rounded-full bg-muted/40 flex items-center justify-center text-xs font-medium">
-                    {["JD", "SM", "AL"][i - 1]}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium leading-none">
-                        {["Jane Doe", "Sam Miller", "Alex Lee"][i - 1]}
-                      </p>
-                      <div className="flex text-amber-400">
-                        {[...Array(5)].map((_, star) => (
-                          <span key={star} className="text-[10px]">★</span>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 italic">
-                      "Beautiful atmosphere and the food was incredible. The main room has the best view."
-                    </p>
-                  </div>
-                </div>
-              ))}
-              <Button variant="ghost" className="w-full text-xs hover:bg-muted/30" size="sm">
-                View all reviews
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )
