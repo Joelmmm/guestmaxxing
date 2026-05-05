@@ -268,6 +268,7 @@ export function TableStatus({ restaurantId, canManage = false }: { restaurantId:
                 restaurantId={restaurantId} 
                 diningAreas={diningAreas.map(a => ({ id: a.id, name: a.name }))}
                 initialData={undefined}
+                defaultAreaId={area.id}
               >
                 <button className="flex flex-col items-center justify-center gap-2 p-4 h-full min-h-[140px] rounded-xl border border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all group/add">
                   <div className="p-2 rounded-full bg-muted group-hover/add:bg-primary/10">

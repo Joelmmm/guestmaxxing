@@ -50,6 +50,7 @@ interface TableDialogProps {
     diningAreaId: string
     isActive: boolean
   }
+  defaultAreaId?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
@@ -59,6 +60,7 @@ export function TableDialog({
   diningAreas,
   children,
   initialData,
+  defaultAreaId,
   open: controlledOpen,
   onOpenChange: setControlledOpen
 }: TableDialogProps) {
@@ -76,25 +78,24 @@ export function TableDialog({
       name: initialData?.name || "",
       minCapacity: initialData?.minCapacity || 2,
       maxCapacity: initialData?.maxCapacity || 4,
-      diningAreaId: initialData?.diningAreaId || (diningAreas.length === 1 ? diningAreas[0].id : ""),
+      diningAreaId: initialData?.diningAreaId || defaultAreaId || (diningAreas.length === 1 ? diningAreas[0].id : ""),
       isActive: initialData?.isActive ?? true,
     },
   }) as any
 
-  // Reset form when initialData or diningAreas change
+  // Reset form when dialog opens to avoid overriding user input during background fetches
   React.useEffect(() => {
-    if (initialData) {
+    if (currentOpen) {
       form.reset({
-        name: initialData.name,
-        minCapacity: initialData.minCapacity,
-        maxCapacity: initialData.maxCapacity,
-        diningAreaId: initialData.diningAreaId,
-        isActive: initialData.isActive,
+        name: initialData?.name || "",
+        minCapacity: initialData?.minCapacity || 2,
+        maxCapacity: initialData?.maxCapacity || 4,
+        diningAreaId: initialData?.diningAreaId || defaultAreaId || (diningAreas.length === 1 ? diningAreas[0].id : ""),
+        isActive: initialData?.isActive ?? true,
       })
-    } else if (diningAreas.length === 1 && !form.getValues("diningAreaId")) {
-        form.setValue("diningAreaId", diningAreas[0].id)
     }
-  }, [initialData, diningAreas, form])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOpen])
 
   async function onSubmit(values: TableFormValues) {
     setIsLoading(true)
