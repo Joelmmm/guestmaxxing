@@ -132,15 +132,21 @@ export function OrganizationSwitcher() {
                   {org.name}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DialogTrigger asChild>
-                <DropdownMenuItem className="gap-2 p-2 cursor-pointer">
-                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                    <Plus className="size-4" />
-                  </div>
-                  <div className="font-medium text-muted-foreground">Create Workspace</div>
-                </DropdownMenuItem>
-              </DialogTrigger>
+              
+              {/* Only allow creating a workspace if the user doesn't have one (MVP limitation) */}
+              {(!orgs || orgs.length === 0) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem className="gap-2 p-2 cursor-pointer">
+                      <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                        <Plus className="size-4" />
+                      </div>
+                      <div className="font-medium text-muted-foreground">Create Workspace</div>
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>

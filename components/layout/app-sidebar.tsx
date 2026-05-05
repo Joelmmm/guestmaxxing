@@ -9,7 +9,7 @@ import {
   UsersIcon,
   TableIcon,
   ChartLineUpIcon,
-  GearIcon,
+  StorefrontIcon,
   UsersThreeIcon
 } from "@phosphor-icons/react"
 
@@ -28,41 +28,51 @@ import {
 } from "@/components/ui/sidebar"
 import { OrganizationSwitcher } from "@/components/organization/organization-switcher"
 
-const items = [
+const navGroups = [
   {
-    title: "Overview",
-    url: "/dashboard",
-    icon: SquaresFourIcon,
+    label: "Operations",
+    items: [
+      {
+        title: "Overview",
+        url: "/dashboard",
+        icon: SquaresFourIcon,
+      },
+      {
+        title: "Reservations",
+        url: "/dashboard/reservations",
+        icon: CalendarIcon,
+      },
+      {
+        title: "Tables",
+        url: "/dashboard/tables",
+        icon: TableIcon,
+      },
+      {
+        title: "Guests",
+        url: "/dashboard/guests",
+        icon: UsersIcon,
+      },
+    ],
   },
   {
-    title: "Reservations",
-    url: "/dashboard/reservations",
-    icon: CalendarIcon,
-  },
-  {
-    title: "Guests",
-    url: "/dashboard/guests",
-    icon: UsersIcon,
-  },
-  {
-    title: "Tables",
-    url: "/dashboard/tables",
-    icon: TableIcon,
-  },
-  {
-    title: "Analytics",
-    url: "/dashboard/analytics",
-    icon: ChartLineUpIcon,
-  },
-  {
-    title: "Team",
-    url: "/dashboard/team",
-    icon: UsersThreeIcon,
-  },
-  {
-    title: "Settings",
-    url: "/dashboard/settings",
-    icon: GearIcon,
+    label: "Management",
+    items: [
+      {
+        title: "Analytics",
+        url: "/dashboard/analytics",
+        icon: ChartLineUpIcon,
+      },
+      {
+        title: "Team",
+        url: "/dashboard/team",
+        icon: UsersThreeIcon,
+      },
+      {
+        title: "Restaurant",
+        url: "/dashboard/restaurant",
+        icon: StorefrontIcon,
+      },
+    ],
   },
 ]
 
@@ -75,27 +85,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Main</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.url}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.url}>
-                      <item.icon size={20} />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <item.icon size={20} />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter>
         {/* You can add user profile switch here later */}

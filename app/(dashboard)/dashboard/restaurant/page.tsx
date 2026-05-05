@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator"
 import { getOrgRestaurant, getServerRestaurantAccess } from "@/lib/api-utils"
 
-export default async function SettingsPage() {
+export default async function RestaurantPage() {
   const result = await getOrgRestaurant({
     operatingHours: {
       include: {
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">No Restaurant Found</h1>
           <p className="text-muted-foreground">
-            You need to create a restaurant first to access settings.
+            You need to create a restaurant first to access this page.
           </p>
         </div>
       </div>
@@ -41,9 +41,9 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Restaurant Profile</h1>
         <p className="text-muted-foreground">
-          Update your restaurant's details and preferences.
+          Update your restaurant's details, operating hours, and preferences.
         </p>
       </div>
 

@@ -72,7 +72,6 @@ export default async function DashboardPage(props: {
         </div>
         <div className="flex items-center gap-2">
           <PublicLinkMenu restaurantSlug={restaurant.slug} />
-          <RestaurantDialog />
         </div>
       </div>
 

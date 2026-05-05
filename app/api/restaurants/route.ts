@@ -53,6 +53,15 @@ export async function POST(req: Request) {
       return new NextResponse('You must select an organization before creating a restaurant', { status: 400 })
     }
 
+    // Enforce MVP limit: 1 restaurant per organization
+    const existingRestaurant = await prisma.restaurant.findFirst({
+      where: { organizationId },
+    })
+
+    if (existingRestaurant) {
+      return new NextResponse('You can only create one restaurant per workspace in the current version', { status: 403 })
+    }
+
     const body = await req.json()
     const validation = validateBody(restaurantSchema, body)
 
