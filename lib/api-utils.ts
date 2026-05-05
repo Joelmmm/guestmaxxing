@@ -19,8 +19,16 @@ export async function getOrgRestaurant<T extends Prisma.RestaurantInclude>(
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return null
 
-  const organizationId = session.session.activeOrganizationId
-  if (!organizationId) return null
+  let organizationId = session.session.activeOrganizationId
+
+  if (!organizationId) {
+    const fallbackMembership = await prisma.member.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'asc' }
+    })
+    if (!fallbackMembership) return null
+    organizationId = fallbackMembership.organizationId
+  }
 
   const restaurant = await prisma.restaurant.findFirst({
     where: { organizationId },
@@ -43,12 +51,21 @@ export async function getOrgMembership() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return null
 
-  const organizationId = session.session.activeOrganizationId
-  if (!organizationId) return null
+  let organizationId = session.session.activeOrganizationId
+  let membership = null
 
-  const membership = await prisma.member.findFirst({
-    where: { userId: session.user.id, organizationId },
-  })
+  if (!organizationId) {
+    membership = await prisma.member.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'asc' }
+    })
+    if (!membership) return null
+    organizationId = membership.organizationId
+  } else {
+    membership = await prisma.member.findFirst({
+      where: { userId: session.user.id, organizationId },
+    })
+  }
 
   if (!membership) return null
 
