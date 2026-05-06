@@ -7,6 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -19,6 +29,7 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("member")
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ memberId: string, memberName: string, newRole: string } | null>(null)
 
   const fetchTeamData = async () => {
     try {
@@ -69,6 +80,14 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
   }
 
   const handleRemoveMember = async (memberId: string) => {
+    if (data) {
+      const memberToRemove = data.members.find(m => m.id === memberId)
+      if (memberToRemove?.role === 'owner' && data.members.filter(m => m.role === 'owner').length <= 1) {
+        toast.error("Action restricted", { description: "You must assign another owner before removing the last owner account." })
+        return
+      }
+    }
+
     if (!confirm("Are you sure you want to remove this member?")) return
     const { error } = await authClient.organization.removeMember({ memberIdOrEmail: memberId })
     if (error) {
@@ -171,8 +190,20 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
                   <TableCell>
                     {canManage ? (
                       <Select 
-                        defaultValue={member.role}
-                        onValueChange={(val) => handleUpdateRole(member.id, val)}
+                        value={member.role}
+                        onValueChange={(val) => {
+                          if (val === 'owner') {
+                            setPendingRoleChange({
+                              memberId: member.id,
+                              memberName: member.user?.name || member.email || "this member",
+                              newRole: val
+                            })
+                          } else if (member.role === 'owner' && members.filter((m: any) => m.role === 'owner').length <= 1) {
+                            toast.error("Action restricted", { description: "You must assign another owner before changing your owner role." })
+                          } else {
+                            handleUpdateRole(member.id, val)
+                          }
+                        }}
                         disabled={member.role === 'owner' && !isOwner}
                       >
                         <SelectTrigger className="w-32 h-8">
@@ -249,6 +280,31 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
             </CardContent>
           </Card>
       )}
+
+      <AlertDialog open={!!pendingRoleChange} onOpenChange={(open) => !open && setPendingRoleChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Grant Owner Privileges?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to make <strong>{pendingRoleChange?.memberName}</strong> an owner. They will have full administrative access to this workspace, including the ability to manage billing, invite staff, and remove other members (including you). Are you absolutely sure?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="default">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              variant="outline"
+              onClick={() => {
+                if (pendingRoleChange) {
+                  handleUpdateRole(pendingRoleChange.memberId, pendingRoleChange.newRole)
+                  setPendingRoleChange(null)
+                }
+              }}
+            >
+              Yes, make owner
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

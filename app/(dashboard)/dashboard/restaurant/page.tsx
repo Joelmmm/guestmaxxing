@@ -47,7 +47,7 @@ export default async function RestaurantPage() {
         </p>
       </div>
 
-      <div className="">
+      <div className="flex flex-col gap-8">
         <div className="md:col-span-2 lg:col-span-3 space-y-8">
           <SettingsForm restaurant={restaurant} className="w-full" canManage={canManage} />
 
@@ -68,10 +68,6 @@ export default async function RestaurantPage() {
               <CardTitle className="text-lg">Quick Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Restaurant ID</p>
-                <p className="text-sm font-mono break-all">{restaurant.id}</p>
-              </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">Current Status</p>
                 <div className="flex items-center gap-2">
