@@ -4,8 +4,14 @@
 import * as React from "react"
 import { useSchedule } from "./schedule-context"
 import { Button } from "@/components/ui/button"
-import { Plus, Trash } from "@phosphor-icons/react"
+import { Plus, Trash, DotsThreeVertical } from "@phosphor-icons/react"
 import { Input } from "@/components/ui/input"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const DAYS = [
     "Sunday",
@@ -37,8 +43,8 @@ export function ScheduleList({ canManage = false }: ScheduleListProps) {
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Weekly Schedule</h3>
                 {canManage && (
-                    <Button 
-                        onClick={saveHours} 
+                    <Button
+                        onClick={saveHours}
                         disabled={!isDirty || isPending}
                         size="sm"
                     >
@@ -69,42 +75,59 @@ export function ScheduleList({ canManage = false }: ScheduleListProps) {
                         </div>
 
                         <div className="px-4">
-                            <div className="space-y-2">
+                            <div className="flex flex-wrap gap-2">
                                 {day.slots.map((slot, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 bg-muted/30 p-2 rounded-md">
-                                        <div className="flex items-center gap-1 flex-1">
+                                    <div
+                                        key={idx}
+                                        className="group/slot inline-flex items-center gap-1.5 bg-muted/40 hover:bg-muted/60 transition-all border border-border/50 pl-3 pr-1 py-2"
+                                    >
+                                        <div className="flex items-center gap-0.5">
                                             <Input
                                                 type="time"
                                                 value={slot.openTime}
                                                 onChange={(e) => onUpdateSlot(day.dayOfWeek, idx, { ...slot, openTime: e.target.value })}
-                                                className="h-8 w-fit border-none bg-transparent p-0 text-xs tabular-nums focus-visible:ring-0"
+                                                className="h-6 w-[68px] border-none bg-transparent p-0 text-[11px] font-medium tabular-nums focus-visible:ring-0"
                                                 readOnly={!canManage}
                                             />
-                                            <span className="text-muted-foreground">-</span>
+                                            <span className="text-[10px] text-muted-foreground font-bold">-</span>
                                             <Input
                                                 type="time"
                                                 value={slot.closeTime}
                                                 onChange={(e) => onUpdateSlot(day.dayOfWeek, idx, { ...slot, closeTime: e.target.value })}
-                                                className="h-8 w-fit border-none bg-transparent p-0 text-xs tabular-nums focus-visible:ring-0"
+                                                className="h-6 w-[68px] border-none bg-transparent p-0 text-[11px] font-medium tabular-nums focus-visible:ring-0"
                                                 readOnly={!canManage}
                                             />
                                         </div>
                                         {canManage && (
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                onClick={() => onRemoveSlot(day.dayOfWeek, idx)}
-                                            >
-                                                <Trash className="h-3.5 w-3.5" />
-                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                                    >
+                                                        <DotsThreeVertical className="h-4 w-4" weight="bold" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-40">
+                                                    <DropdownMenuItem
+                                                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                        onClick={() => onRemoveSlot(day.dayOfWeek, idx)}
+                                                    >
+                                                        <Trash className="mr-2 h-4 w-4" />
+                                                        Remove Slot
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         )}
                                     </div>
                                 ))}
+                                {day.slots.length === 0 && (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-dashed border-border bg-muted/20">
+                                        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Closed</span>
+                                    </div>
+                                )}
                             </div>
-                            {day.slots.length === 0 && (
-                                <p className="text-xs text-muted-foreground italic py-2">Closed</p>
-                            )}
                         </div>
                     </div>
                 ))}
