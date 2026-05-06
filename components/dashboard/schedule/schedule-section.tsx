@@ -29,9 +29,9 @@ export function ScheduleSection({ restaurantId, restaurantTimezone, initialData,
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 w-full overflow-hidden mb4-">
-            <ScheduleList />
+            <ScheduleList canManage={canManage} />
           </div>
-          <OverridesCard />
+          <OverridesCard canManage={canManage} />
         </div>
       </div>
     </ScheduleProvider>

@@ -25,7 +25,11 @@ import {
   CardAction,
 } from "@/components/ui/card"
 
-export function OverridesCard() {
+interface OverridesCardProps {
+  canManage?: boolean
+}
+
+export function OverridesCard({ canManage = false }: OverridesCardProps) {
   const { overrides, setSelectedOverrideDate, setView, onRemoveOverride, restaurantTimezone } = useSchedule()
 
   return (
@@ -36,7 +40,7 @@ export function OverridesCard() {
             <CalendarIcon className="size-4 text-primary" />
             Schedule Overrides
           </CardTitle>
-          <AddOverrideDialog />
+          {canManage && <AddOverrideDialog />}
         </div>
         <CardDescription>
           Holidays, events, or emergency closures.
@@ -59,6 +63,7 @@ export function OverridesCard() {
                   <OverrideItem
                     key={index}
                     override={override}
+                    canManage={canManage}
                     onRemove={() => onRemoveOverride(index)}
                     onClick={() => {
                       setSelectedOverrideDate(override.date)
@@ -186,7 +191,7 @@ function AddOverrideDialog() {
   )
 }
 
-function OverrideItem({ override, onRemove, onClick }: { override: any; onRemove: () => void; onClick: () => void }) {
+function OverrideItem({ override, canManage, onRemove, onClick }: { override: any; canManage?: boolean; onRemove: () => void; onClick: () => void }) {
   const dateStr = formatInTimeZone(new Date(`${override.date}T00:00:00.000Z`), "UTC", "MMM d")
 
   return (
@@ -205,19 +210,20 @@ function OverrideItem({ override, onRemove, onClick }: { override: any; onRemove
           )}
         </ItemDescription>
       </ItemContent>
-      <ItemActions >
-        <Button
-          variant="ghost"
-          size="icon"
-
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemove()
-          }}
-        >
-          <Trash />
-        </Button>
-      </ItemActions>
+      {canManage && (
+        <ItemActions>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+          >
+            <Trash />
+          </Button>
+        </ItemActions>
+      )}
     </Item>
   )
 }

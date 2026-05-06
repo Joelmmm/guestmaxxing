@@ -7,18 +7,18 @@ import { Storefront } from "@phosphor-icons/react/dist/ssr"
 import { AcceptInviteClient } from "./accept-invite-client"
 
 export default async function AcceptInvitePage(
-  props: { searchParams: Promise<{ token?: string }> }
+  props: { searchParams: Promise<{ id?: string }> }
 ) {
   const searchParams = await props.searchParams
-  const token = searchParams.token
+  const id = searchParams.id
 
-  if (!token) {
+  if (!id) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Invalid Link</CardTitle>
-            <CardDescription>Missing invitation token in the URL.</CardDescription>
+            <CardDescription>Missing invitation ID in the URL.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -30,13 +30,13 @@ export default async function AcceptInvitePage(
 
   if (!session) {
     // If not, send them to sign-up and pass 'returnTo' so they come right back here
-    const returnUrl = encodeURIComponent(`/accept-invite?token=${token}`)
+    const returnUrl = encodeURIComponent(`/accept-invite?id=${id}`)
     redirect(`/sign-up?returnTo=${returnUrl}`)
   }
 
   // 2. We are logged in, now grab the invitation directly from PRISMA to verify it
   const invitation = await prisma.invitation.findUnique({
-    where: { id: token },
+    where: { id },
     include: { 
       organization: true, 
       user: true // The inviter's user model is kept on the invitation
@@ -82,7 +82,7 @@ export default async function AcceptInvitePage(
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AcceptInviteClient token={token} orgName={invitation.organization.name} />
+          <AcceptInviteClient token={id} orgName={invitation.organization.name} />
         </CardContent>
       </Card>
     </div>

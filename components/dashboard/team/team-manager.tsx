@@ -19,7 +19,6 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("member")
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null)
 
   const fetchTeamData = async () => {
     try {
@@ -42,19 +41,18 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
   const handleGenerateInvite = async () => {
     if (!inviteEmail) return
     try {
-        // Create an invitation first manually since getInvitationURL alone might just return the URL 
-        // without physically adding it to the invitations list depending on configuration, wait getInvitationURL creates it
-      const { data, error } = await authClient.organization.getInvitationURL({
+      const { data, error } = await authClient.organization.inviteMember({
         email: inviteEmail,
         role: inviteRole as any,
       })
       if (error) {
-        toast.error("Failed to generate invitation", { description: error.message })
+        toast.error("Failed to send invitation", { description: error.message })
         return
       }
-      setGeneratedLink(data?.url || "Error generating link")
       fetchTeamData()
-      toast.success("Invitation generated")
+      setIsInviteDialogOpen(false)
+      setInviteEmail("")
+      toast.success(`Invitation sent to ${inviteEmail}`)
     } catch (err: any) {
       toast.error("Error", { description: err.message })
     }
@@ -109,7 +107,7 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
           {canManage && (
             <Dialog open={isInviteDialogOpen} onOpenChange={(open) => {
               setIsInviteDialogOpen(open)
-              if (!open) setGeneratedLink(null)
+              if (!open) setInviteEmail("")
             }}>
               <DialogTrigger asChild>
                 <Button>Invite Staff</Button>
@@ -144,27 +142,9 @@ export function TeamManager({ isOwner, canManage }: { isOwner: boolean; canManag
                     </Select>
                   </div>
                   
-                  {generatedLink ? (
-                     <div className="rounded-md bg-muted p-4 space-y-2 mt-4">
-                        <Label>Shareable Invitation Link</Label>
-                        <div className="flex items-center gap-2">
-                            <Input readOnly value={generatedLink} className="bg-background select-all font-mono text-xs" />
-                            <Button 
-                                variant="outline" 
-                                onClick={() => {
-                                    navigator.clipboard.writeText(generatedLink);
-                                    toast.success("Link copied to clipboard");
-                                }}
-                            >
-                                Copy
-                            </Button>
-                        </div>
-                     </div>
-                  ) : (
-                    <Button className="w-full" onClick={handleGenerateInvite} disabled={!inviteEmail}>
-                      Generate Invitation Link
-                    </Button>
-                  )}
+                  <Button className="w-full" onClick={handleGenerateInvite} disabled={!inviteEmail}>
+                    Send Invitation Email
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>

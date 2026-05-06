@@ -33,7 +33,7 @@ To explicitly catch this, we use a **Dashboard Gatekeeper** at `app/(dashboard)/
 
 ### The Invited Signup Flow Interception
 To process the invited staff member seamlessly:
-1. They arrive via `/accept-invite?token=XYZ`.
+1. They arrive via `/accept-invite?id=<invitation_id>`.
 2. `app/accept-invite/page.tsx` checks authentication. If logged out, redirects to `/sign-up` with a `returnTo` parameter.
 3. Once logged in, the `accept-invite-client.tsx` triggers `authClient.organization.acceptInvitation()`.
 4. It natively sets that organization to `active` and pushes the User to `/dashboard`. Gatekeeper clears them because they now possess an organization.

@@ -17,7 +17,11 @@ const DAYS = [
     "Saturday"
 ]
 
-export function ScheduleList() {
+interface ScheduleListProps {
+    canManage?: boolean
+}
+
+export function ScheduleList({ canManage = false }: ScheduleListProps) {
     const { data, onAddSlot, onRemoveSlot, onUpdateSlot, isDirty, isPending, saveHours } = useSchedule()
 
     // Ensure all 7 days are represented
@@ -32,13 +36,15 @@ export function ScheduleList() {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Weekly Schedule</h3>
-                <Button 
-                    onClick={saveHours} 
-                    disabled={!isDirty || isPending}
-                    size="sm"
-                >
-                    {isPending ? "Saving..." : "Save Changes"}
-                </Button>
+                {canManage && (
+                    <Button 
+                        onClick={saveHours} 
+                        disabled={!isDirty || isPending}
+                        size="sm"
+                    >
+                        {isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                )}
             </div>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {fullWeekData.map((day) => (
@@ -49,14 +55,16 @@ export function ScheduleList() {
                         <div className="group/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-sm font-semibold leading-snug">{DAYS[day.dayOfWeek]}</h3>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8"
-                                    onClick={() => onAddSlot(day.dayOfWeek, { openTime: "09:00", closeTime: "17:00" })}
-                                >
-                                    <Plus className="h-4 w-4" />
-                                </Button>
+                                {canManage && (
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-8 w-8"
+                                        onClick={() => onAddSlot(day.dayOfWeek, { openTime: "09:00", closeTime: "17:00" })}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
@@ -70,6 +78,7 @@ export function ScheduleList() {
                                                 value={slot.openTime}
                                                 onChange={(e) => onUpdateSlot(day.dayOfWeek, idx, { ...slot, openTime: e.target.value })}
                                                 className="h-8 w-fit border-none bg-transparent p-0 text-xs tabular-nums focus-visible:ring-0"
+                                                readOnly={!canManage}
                                             />
                                             <span className="text-muted-foreground">-</span>
                                             <Input
@@ -77,16 +86,19 @@ export function ScheduleList() {
                                                 value={slot.closeTime}
                                                 onChange={(e) => onUpdateSlot(day.dayOfWeek, idx, { ...slot, closeTime: e.target.value })}
                                                 className="h-8 w-fit border-none bg-transparent p-0 text-xs tabular-nums focus-visible:ring-0"
+                                                readOnly={!canManage}
                                             />
                                         </div>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                            onClick={() => onRemoveSlot(day.dayOfWeek, idx)}
-                                        >
-                                            <Trash className="h-3.5 w-3.5" />
-                                        </Button>
+                                        {canManage && (
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                onClick={() => onRemoveSlot(day.dayOfWeek, idx)}
+                                            >
+                                                <Trash className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

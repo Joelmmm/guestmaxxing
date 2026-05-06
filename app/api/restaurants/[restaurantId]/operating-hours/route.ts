@@ -49,7 +49,7 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId);
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
     if (!access.isAuthorized) return access.response;
 
     const body = await req.json()

@@ -25,9 +25,9 @@ export function AcceptInviteClient({ token, orgName }: { token: string, orgName:
       }
 
       // Success - we joined! Set this org as the active one so the Dashboard loads it immediately
-      if (data && data.organizationId) {
+      if (data && data.invitation?.organizationId) {
          await authClient.organization.setActive({
-           organizationId: data.organizationId
+           organizationId: data.invitation.organizationId
          })
       }
 
