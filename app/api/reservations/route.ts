@@ -46,6 +46,12 @@ export async function POST(req: Request) {
       if (error.message === 'PAST_RESERVATION') {
         return new NextResponse('Cannot make a reservation in the past', { status: 400 })
       }
+      if (error.message === 'RESTAURANT_CLOSED') {
+        return new NextResponse('The restaurant is closed on the selected date.', { status: 409 })
+      }
+      if (error.message === 'OUTSIDE_OPERATING_HOURS') {
+        return new NextResponse('The requested time falls outside operating hours.', { status: 409 })
+      }
       if (error.message === 'GUEST_INFO_REQUIRED') {
         return new NextResponse('Guest information is required', { status: 400 })
       }

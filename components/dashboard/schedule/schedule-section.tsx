@@ -17,8 +17,18 @@ interface ScheduleSectionProps {
 }
 
 export function ScheduleSection({ restaurantId, restaurantTimezone, initialData, initialOverrides = [], className, canManage = false }: ScheduleSectionProps) {
+  // Ensure dates are strings for the client components
+  const formattedOverrides = initialOverrides.map(override => ({
+    ...override,
+    date: override.date instanceof Date 
+      ? override.date.toISOString().split('T')[0] 
+      : typeof override.date === 'string' 
+        ? override.date.split('T')[0] 
+        : override.date
+  }))
+
   return (
-    <ScheduleProvider restaurantId={restaurantId} restaurantTimezone={restaurantTimezone} initialData={initialData} initialOverrides={initialOverrides}>
+    <ScheduleProvider restaurantId={restaurantId} restaurantTimezone={restaurantTimezone} initialData={initialData} initialOverrides={formattedOverrides}>
       <div className={cn("space-y-6", className)}>
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold tracking-tight">Operation & Schedule</h2>

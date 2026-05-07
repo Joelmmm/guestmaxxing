@@ -116,7 +116,7 @@ model ScheduleOverride {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   slots        TimeSlot[] // Empty if isClosed = true
 
-  @@index([restaurantId, date])
+  @@unique([restaurantId, date])
 }
 
 // Reusable time slot for operating hours and overrides

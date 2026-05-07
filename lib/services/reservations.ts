@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { checkAvailability } from '@/lib/availability'
+import { checkAvailability, checkScheduleValidity } from '@/lib/availability'
 import { toRestaurantDateFilter } from '@/lib/time-utils'
 import { fromZonedTime } from 'date-fns-tz'
 import { ReservationFormValues } from '@/lib/validations/reservation'
@@ -11,7 +11,7 @@ import { ReservationFormValues } from '@/lib/validations/reservation'
 
 export async function getReservations(restaurantId: string, date?: string, status?: string) {
   const where: any = { restaurantId }
-  
+
   if (date) {
     where.reservationDate = toRestaurantDateFilter(date)
   }
@@ -129,6 +129,23 @@ export async function createReservation(data: ReservationFormValues) {
       reservation = await prisma.$transaction(async (tx) => {
         let finalTableIds: string[] = []
 
+        // ── Schedule gate: applies to BOTH manual and automatic paths ──────────
+        // Without this, selecting a specific table bypasses override/hours checks.
+        const scheduleCheck = await checkScheduleValidity({
+          restaurantId,
+          date: reservationDate,
+          time: startTime,
+          durationMins: durationMins || 90,
+        }, tx)
+
+        if (!scheduleCheck.valid) {
+          if (scheduleCheck.reason === 'RESTAURANT_CLOSED') throw new Error('RESTAURANT_CLOSED')
+          if (scheduleCheck.reason === 'NO_OPERATING_HOURS') throw new Error('NO_TABLES_AVAILABLE')
+          throw new Error('OUTSIDE_OPERATING_HOURS')
+        }
+
+        // ────────────────────────────────────────────────────────────────────────
+
         if (tableIds && tableIds.length > 0) {
           // Specific table assignment (Manual Override)
           const overlapping = await tx.reservationOnTable.findFirst({
@@ -199,7 +216,12 @@ export async function createReservation(data: ReservationFormValues) {
 
       break; // transaction success, exit retry loop
     } catch (error: any) {
-      if (error instanceof Error && (error.message === 'SPECIFIC_TABLES_BOOKED' || error.message === 'NO_TABLES_AVAILABLE')) {
+      if (error instanceof Error && (
+        error.message === 'SPECIFIC_TABLES_BOOKED' ||
+        error.message === 'NO_TABLES_AVAILABLE' ||
+        error.message === 'RESTAURANT_CLOSED' ||
+        error.message === 'OUTSIDE_OPERATING_HOURS'
+      )) {
         throw error;
       }
 

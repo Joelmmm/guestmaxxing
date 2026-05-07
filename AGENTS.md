@@ -50,7 +50,10 @@ The following entities have been fully migrated to the centralized validation la
 - [x] **Tables**: `POST /api/restaurants/[id]/tables` and `TableDialog`
 - [x] **Guests**: `POST /api/guests` and `GuestDialog`
 - [x] **Reservations**: `POST /api/reservations` and `ReservationDialog` (includes nested guest logic)
+- [x] **Operating Hours & Overrides**: `GET|POST /api/restaurants/[id]/operating-hours` fully delegated to `lib/services/operating-hours.ts`
 
 ## 📌 Implementation Notes
 - **Time/Date**: Reservations use `reservationDate` (Date) and `startTime`/`endTime` (ISO strings) for persistence, while the UI calculates the full Date objects for standard API delivery.
+- **UTC Date Boundaries**: All `@db.Date` fields (e.g., `ScheduleOverride.date`, `Reservation.reservationDate`) must be constructed as **UTC midnight** (`new Date(\`${dateStr}T00:00:00.000Z\`)`) — never via `new Date().setHours(0,0,0,0)`, which uses the server's local timezone and produces incorrect DB comparisons.
+- **Override Uniqueness**: `ScheduleOverride` has a `@@unique([restaurantId, date])` constraint. Always use `upsert` (via `restaurantId_date` composite key) — never `create` blindly. The service layer in `lib/services/operating-hours.ts` enforces this.
 - **Error Mapping**: When the API returns a 409 Conflict (e.g., overlapping table booking), the UI should map this error to the specific field (usually `tableIds`).

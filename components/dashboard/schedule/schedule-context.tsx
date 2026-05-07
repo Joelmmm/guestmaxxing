@@ -57,27 +57,39 @@ export function ScheduleProvider({
   const [data, setData] = React.useState<OperatingHoursFormValues[]>(initialData)
   const [savedData, setSavedData] = React.useState<OperatingHoursFormValues[]>(initialData)
   const [overrides, setOverrides] = React.useState<any[]>(initialOverrides)
+  const [savedOverrides, setSavedOverrides] = React.useState<any[]>(initialOverrides)
   const [activeDay, setActiveDay] = React.useState<number | null>(null)
   const [view, setView] = React.useState<"weekly" | "override">("weekly")
   const [selectedOverrideDate, setSelectedOverrideDate] = React.useState<Date | null>(null)
   const [isPending, setIsPending] = React.useState(false)
 
   const isDirty = React.useMemo(() => {
-    return JSON.stringify(data) !== JSON.stringify(savedData)
-  }, [data, savedData])
+    return JSON.stringify(data) !== JSON.stringify(savedData) || JSON.stringify(overrides) !== JSON.stringify(savedOverrides)
+  }, [data, savedData, overrides, savedOverrides])
 
   const saveHours = async () => {
     if (!isDirty) return
     setIsPending(true)
     try {
       const validData = data.filter(d => d.slots && d.slots.length > 0)
+      
+      const payload = {
+        type: "SCHEDULE_BATCH",
+        data: {
+          hours: validData,
+          overrides: overrides
+        }
+      }
+      
       const response = await fetch(`/api/restaurants/${restaurantId}/operating-hours`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "HOURS_BATCH", data: validData }),
+        body: JSON.stringify(payload),
       })
-      if (!response.ok) throw new Error("Failed to save hours")
+      if (!response.ok) throw new Error("Failed to save schedule")
+      
       setSavedData(data)
+      setSavedOverrides(overrides)
       toast.success("Schedule updated successfully")
     } catch (error) {
       console.error("Save error:", error)

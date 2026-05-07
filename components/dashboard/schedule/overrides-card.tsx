@@ -106,10 +106,11 @@ function AddOverrideDialog() {
 
     selectedDates.forEach(date => {
       // Avoid duplicates for the same date if needed, or update existing
-      const existing = overrides.find(o => isSameDay(new Date(o.date), date))
+      const dateString = format(date, "yyyy-MM-dd")
+      const existing = overrides.find(o => o.date === dateString)
       if (!existing) {
         onAddOverride({
-          date,
+          date: dateString,
           isClosed,
           slots: isClosed ? [] : slots
         })
@@ -127,64 +128,83 @@ function AddOverrideDialog() {
           <Plus />
         </Button>
       </DialogTrigger>
-      <DialogContent className="">
+      <DialogContent className="" style={{ maxWidth: 'fit-content' }}>
         <DialogHeader>
           <DialogTitle>Add Override</DialogTitle>
         </DialogHeader>
-        <div className="flex gap-10" >
-          <div >
-            <span >Select Date or Range</span>
+        <div className="flex md:flex-row flex-col justify-center gap-6 ">
+          <div className="flex flex-col gap-2">
             <Calendar
               mode="range"
               selected={range}
               onSelect={setRange}
               disabled={(date) => date < parseDateForCalendar(getRestaurantTodayStr(restaurantTimezone))}
             />
+            <caption className="text-xs text-muted-foreground font-light text-center">Select Date or Range</caption>
           </div>
-          <div >
-            <div >
-              <Label htmlFor="is-closed" >Closed All Day</Label>
+
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm bg-card">
+              <div className="space-y-1">
+                <Label htmlFor="is-closed" className="text-base">Closed All Day</Label>
+                <p className="text-xs text-muted-foreground">
+                  Mark the selected dates as fully closed.
+                </p>
+              </div>
               <Switch id="is-closed" checked={isClosed} onCheckedChange={setIsClosed} />
             </div>
 
             {!isClosed && (
-              <div >
-                <div >
-                  <span >
-                    <Clock /> Time Slots
-                  </span>
-                  <Button variant="ghost" size="icon" onClick={handleAddSlot}>
-                    <Plus />
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-base flex items-center gap-2">
+                      <Clock className="size-4" /> Time Slots
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Define the open hours for the override.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleAddSlot}>
+                    <Plus className="size-3.5" />
+                    <span>Add Slot</span>
                   </Button>
                 </div>
-                <div >
+
+                <div className="flex flex-col gap-3">
                   {slots.map((slot, idx) => (
-                    <div key={idx} >
+                    <div key={idx} className="flex items-center gap-3">
                       <Input
                         type="time"
+                        className="w-[130px] shadow-sm"
                         value={slot.openTime}
                         onChange={(e) => handleUpdateSlot(idx, "openTime", e.target.value)}
                       />
-                      <span >-</span>
+                      <span className="text-muted-foreground text-sm font-medium">to</span>
                       <Input
                         type="time"
+                        className="w-[130px] shadow-sm"
                         value={slot.closeTime}
                         onChange={(e) => handleUpdateSlot(idx, "closeTime", e.target.value)}
-
                       />
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveSlot(idx)}>
-                        <Trash />
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleRemoveSlot(idx)}>
+                        <Trash className="size-4" />
                       </Button>
                     </div>
                   ))}
+                  {slots.length === 0 && (
+                    <div className="text-sm text-muted-foreground text-center py-6 border border-dashed rounded-md bg-muted/10">
+                      No time slots added.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
-        <DialogFooter >
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button size="sm" onClick={handleSave} disabled={!range?.from}>Save Changes</Button>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!range?.from}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -195,17 +215,21 @@ function OverrideItem({ override, canManage, onRemove, onClick }: { override: an
   const dateStr = formatInTimeZone(new Date(`${override.date}T00:00:00.000Z`), "UTC", "MMM d")
 
   return (
-    <Item variant="outline" size="xs" onClick={onClick}>
+    <Item variant="outline" size="xs" onClick={onClick} className="w-fit cursor-pointer hover:bg-muted/50 transition-colors">
       <ItemContent >
         <ItemTitle >
           {dateStr}
         </ItemTitle>
-        <ItemDescription >
+        <ItemDescription className="line-clamp-none">
           {override.isClosed ? (
-            <span >Closed</span>
+            <span className="text-destructive">Closed</span>
           ) : (
             override.slots?.length > 0 ? (
-              `${override.slots[0].openTime}...`
+              override.slots.map((slot: any, i: number) => (
+                <span key={i} className="block whitespace-nowrap">
+                  {slot.openTime} - {slot.closeTime}
+                </span>
+              ))
             ) : "No slots"
           )}
         </ItemDescription>

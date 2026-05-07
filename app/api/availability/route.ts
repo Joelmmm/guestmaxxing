@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     }
 
     const access = await verifyRestaurantAccess(validation.data.restaurantId);
-    if (!access.isAuthorized) return access.response;
+    if (!access.isAuthorized) return access.response as NextResponse;
 
     // Run the engine
     const result = await checkAvailability(validation.data)

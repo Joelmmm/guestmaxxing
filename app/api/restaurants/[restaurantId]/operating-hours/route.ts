@@ -1,44 +1,27 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyRestaurantAccess } from '@/lib/api-utils'
-import { validateBody } from '@/lib/api-utils'
-import { operatingHoursSchema, scheduleOverrideSchema } from '@/lib/validations/operating-hours'
+import { verifyRestaurantAccess, validateBody } from '@/lib/api-utils'
+import { operatingHoursSchema, scheduleOverrideSchema, operatingHoursPayloadSchema } from '@/lib/validations/operating-hours'
+import {
+  getSchedule,
+  upsertOperatingHours,
+  upsertScheduleOverride,
+  saveScheduleBatch,
+} from '@/lib/services/operating-hours'
 import * as z from 'zod'
 
 interface OperatingHoursParams {
-  params: Promise<{
-    restaurantId: string
-  }>
+  params: Promise<{ restaurantId: string }>
 }
 
-export async function GET(req: Request, { params }: OperatingHoursParams) {
+export async function GET(_req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
-    
-    const access = await verifyRestaurantAccess(restaurantId);
-    if (!access.isAuthorized) return access.response;
 
-    const hours = await prisma.operatingHours.findMany({
-      where: { restaurantId },
-      include: { slots: true },
-      orderBy: { dayOfWeek: 'asc' },
-    })
+    const access = await verifyRestaurantAccess(restaurantId)
+    if (!access.isAuthorized) return access.response
 
-    const overrides = await prisma.scheduleOverride.findMany({
-      where: {
-        restaurantId,
-        date: {
-          gte: new Date(), // Just current and future ones
-        },
-      },
-      include: { slots: true },
-      orderBy: { date: 'asc' },
-    })
-
-    return NextResponse.json({
-      hours,
-      overrides,
-    })
+    const schedule = await getSchedule(restaurantId)
+    return NextResponse.json(schedule)
   } catch (error) {
     console.error('[OPERATING_HOURS_GET]', error)
     return new NextResponse('Internal Error', { status: 500 })
@@ -49,128 +32,35 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
-    if (!access.isAuthorized) return access.response;
+    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin'])
+    if (!access.isAuthorized) return access.response
 
     const body = await req.json()
-    const { type, data } = body // type: 'HOURS' or 'OVERRIDE'
+    const validation = validateBody(operatingHoursPayloadSchema, body)
+    if (!validation.isValid) return validation.response
 
-    if (type === 'HOURS') {
-      const validation = validateBody(operatingHoursSchema, data)
-      if (!validation.isValid) return validation.response
+    const payload = validation.data
 
-      const { dayOfWeek, slots } = validation.data
+    // ── Single operating-hours upsert ─────────────────────────────────────
+    if (payload.type === 'HOURS') {
+      const result = await upsertOperatingHours(restaurantId, payload.data)
+      return NextResponse.json(result)
+    }
 
-      // Check if already exists for this day
-      const existing = await prisma.operatingHours.findUnique({
-        where: {
-          restaurantId_dayOfWeek: {
-            restaurantId,
-            dayOfWeek,
-          },
-        },
-      })
+    // ── Single schedule-override upsert ───────────────────────────────────
+    if (payload.type === 'OVERRIDE') {
+      const result = await upsertScheduleOverride(restaurantId, payload.data)
+      return NextResponse.json(result)
+    }
 
-      if (existing) {
-        const hour = await prisma.operatingHours.update({
-          where: { id: existing.id },
-          data: {
-            slots: {
-              deleteMany: {},
-              create: slots,
-            },
-          },
-          include: { slots: true },
-        })
-        return NextResponse.json(hour)
-      } else {
-        const hour = await prisma.operatingHours.create({
-          data: {
-            restaurantId,
-            dayOfWeek,
-            slots: {
-              create: slots,
-            },
-          },
-          include: { slots: true },
-        })
-        return NextResponse.json(hour)
-      }
-    } else if (type === 'OVERRIDE') {
-      const validation = validateBody(scheduleOverrideSchema, data)
-      if (!validation.isValid) return validation.response
-
-      const { date, isClosed, slots } = validation.data
-
-      // Check if already exists for this date
-      const existing = await prisma.scheduleOverride.findFirst({
-        where: { 
-          restaurantId, 
-          date: {
-            equals: date
-          }
-        },
-      })
-
-      if (existing) {
-        const override = await prisma.scheduleOverride.update({
-          where: { id: existing.id },
-          data: {
-            isClosed,
-            slots: {
-              deleteMany: {},
-              create: isClosed ? [] : slots,
-            },
-          },
-          include: { slots: true },
-        })
-        return NextResponse.json(override)
-      } else {
-        const override = await prisma.scheduleOverride.create({
-          data: {
-            restaurantId,
-            date,
-            isClosed,
-            slots: {
-              create: isClosed ? [] : slots,
-            },
-          },
-          include: { slots: true },
-        })
-        return NextResponse.json(override)
-      }
-    } else if (type === 'HOURS_BATCH') {
-      const arraySchema = z.array(operatingHoursSchema)
-      const validation = validateBody(arraySchema, data)
-      if (!validation.isValid) return validation.response
-
-      const validHours = validation.data
-
-      // Delete existing hours and recreate
-      await prisma.$transaction([
-        prisma.operatingHours.deleteMany({
-          where: { restaurantId }
-        }),
-        ...validHours.map(hour => 
-          prisma.operatingHours.create({
-            data: {
-              restaurantId,
-              dayOfWeek: hour.dayOfWeek,
-              slots: {
-                create: hour.slots
-              }
-            }
-          })
-        )
-      ])
-
-      const newHours = await prisma.operatingHours.findMany({
-        where: { restaurantId },
-        include: { slots: true },
-        orderBy: { dayOfWeek: 'asc' },
-      })
-      
-      return NextResponse.json(newHours)
+    // ── Full schedule batch save ───────────────────────────────────────────
+    if (payload.type === 'SCHEDULE_BATCH') {
+      const result = await saveScheduleBatch(
+        restaurantId,
+        payload.data.hours,
+        payload.data.overrides
+      )
+      return NextResponse.json(result)
     }
 
     return new NextResponse('Invalid type', { status: 400 })

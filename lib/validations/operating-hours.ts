@@ -79,6 +79,25 @@ export const scheduleOverrideSchema = z
     }
   )
 
+export const operatingHoursPayloadSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("HOURS"),
+    data: operatingHoursSchema,
+  }),
+  z.object({
+    type: z.literal("OVERRIDE"),
+    data: scheduleOverrideSchema,
+  }),
+  z.object({
+    type: z.literal("SCHEDULE_BATCH"),
+    data: z.object({
+      hours: z.array(operatingHoursSchema),
+      overrides: z.array(scheduleOverrideSchema),
+    }),
+  }),
+])
+
 export type OperatingHoursFormValues = z.infer<typeof operatingHoursSchema>
 export type ScheduleOverrideFormValues = z.infer<typeof scheduleOverrideSchema>
 export type TimeSlotFormValues = z.infer<typeof timeSlotSchema>
+export type OperatingHoursPayload = z.infer<typeof operatingHoursPayloadSchema>
