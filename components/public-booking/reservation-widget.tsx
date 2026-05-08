@@ -1,16 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isBefore, startOfDay } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { getRestaurantTodayStr, parseDateForCalendar, getRestaurantTodayForCalendar } from "@/lib/time-utils"
-import { CalendarBlank, Clock, CheckCircle } from "@phosphor-icons/react"
+import { CalendarBlank, Clock, CheckCircle, Spinner } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { reservationSchema, type ReservationFormValues } from "@/lib/validations/reservation"
 import type { Prisma } from "@/generated/client"
 import { cn } from "@/lib/utils"
+import { getTurnTime, getEffectiveScheduleSlots, generateAvailableTimeSlots } from "@/lib/schedule-utils"
 import {
   Form,
   FormControl,
@@ -57,55 +58,18 @@ type Step = "setup" | "guest-info" | "success"
 // Schedule resolution helpers (pure, no API calls)
 // ---------------------------------------------------------------------------
 
-function generateSlotStrings(
-  slots: Array<{ openTime: string; closeTime: string }>,
-  isToday: boolean,
-  restaurantTimezone: string
-): string[] {
-  const result: string[] = []
-  // Compute the current minute-of-day in the restaurant's timezone, not the browser's.
-  const nowInRestaurant = formatInTimeZone(new Date(), restaurantTimezone, "HH:mm")
-  const [nh, nm] = nowInRestaurant.split(":").map(Number)
-  const currentMinutes = nh * 60 + nm
-
-  for (const slot of slots) {
-    const [oh, om] = slot.openTime.split(":").map(Number)
-    const [ch, cm] = slot.closeTime.split(":").map(Number)
-    let current = oh * 60 + om
-    const end = ch * 60 + cm - 30
-    while (current <= end) {
-      if (!isToday || current > currentMinutes) {
-        const h = Math.floor(current / 60).toString().padStart(2, "0")
-        const m = (current % 60).toString().padStart(2, "0")
-        result.push(`${h}:${m}`)
-      }
-      current += 30
-    }
-  }
-  return result
-}
-
-function resolveTimeSlots(dateStr: string, restaurant: RestaurantWithSchedule): string[] {
-  const todayStr = getRestaurantTodayStr(restaurant.timezone)
-  const isToday = dateStr === todayStr
-
+function isClosedDay(date: Date, restaurant: RestaurantWithSchedule): boolean {
+  const dateStr = formatInTimeZone(date, "UTC", "yyyy-MM-dd")
   const override = restaurant.scheduleOverrides.find(
     (o) => formatInTimeZone(new Date(`${typeof o.date === 'string' ? o.date : (o.date as Date).toISOString().split('T')[0]}T00:00:00.000Z`), "UTC", "yyyy-MM-dd") === dateStr
   )
-  if (override) {
-    if (override.isClosed || override.slots.length === 0) return []
-    return generateSlotStrings(override.slots, isToday, restaurant.timezone)
-  }
-
+  
   const [year, month, day] = dateStr.split('-').map(Number)
   const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getDay()
   const hours = restaurant.operatingHours.find((h) => h.dayOfWeek === dayOfWeek)
-  if (!hours || hours.slots.length === 0) return []
-  return generateSlotStrings(hours.slots, isToday, restaurant.timezone)
-}
 
-function isClosedDay(date: Date, restaurant: RestaurantWithSchedule): boolean {
-  return resolveTimeSlots(formatInTimeZone(date, "UTC", "yyyy-MM-dd"), restaurant).length === 0
+  const effectiveSlots = getEffectiveScheduleSlots(override, hours)
+  return !effectiveSlots || effectiveSlots.length === 0
 }
 
 // ---------------------------------------------------------------------------
@@ -127,11 +91,37 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
 
   const reservationDate = form.watch("reservationDate")
   const startTime = form.watch("startTime")
+  const partySize = form.watch("partySize")
 
-  const availableSlots = useMemo(
-    () => (reservationDate ? resolveTimeSlots(reservationDate, restaurant) : []),
-    [reservationDate, restaurant]
-  )
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
+
+  useEffect(() => {
+    async function fetchSlots() {
+      if (!reservationDate || !partySize) {
+        setAvailableSlots([])
+        return
+      }
+
+      setIsLoadingSlots(true)
+      try {
+        const res = await fetch(`/api/availability/public?slug=${restaurant.slug}&date=${reservationDate}&partySize=${partySize}`)
+        if (res.ok) {
+          const data = await res.json()
+          setAvailableSlots(data.availableSlots || [])
+        } else {
+          setAvailableSlots([])
+        }
+      } catch (err) {
+        console.error("Failed to fetch availability", err)
+        setAvailableSlots([])
+      } finally {
+        setIsLoadingSlots(false)
+      }
+    }
+
+    fetchSlots()
+  }, [reservationDate, partySize, restaurant.id])
 
   const selectedSlot = startTime
 
@@ -296,7 +286,12 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                           <Clock />
                           Available times
                         </FormLabel>
-                        {availableSlots.length === 0 ? (
+                        {isLoadingSlots ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                            <Spinner className="animate-spin" />
+                            Checking table availability...
+                          </div>
+                        ) : availableSlots.length === 0 ? (
                           <p className="text-sm text-muted-foreground">
                             No available times for this date.
                           </p>

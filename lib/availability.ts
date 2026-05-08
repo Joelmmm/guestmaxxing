@@ -4,8 +4,12 @@ import {
   getTurnTime,
   combineDateAndTime,
   addMinutesToDate,
-  timeToMinutes
+  timeToMinutes,
+  getEffectiveScheduleSlots,
+  fitsInSchedule,
+  generateAvailableTimeSlots
 } from "@/lib/schedule-utils"
+import { getRestaurantTodayStr, parseDateStr, toRestaurantUtcDate } from "@/lib/time-utils"
 
 const BUFFER_TIME = 10 // minutes for bussing/resetting table
 
@@ -32,46 +36,30 @@ export async function checkScheduleValidity({
   const reqDate = new Date(`${date}T00:00:00.000Z`)
   const dayOfWeek = reqDate.getUTCDay()
 
-  let timeSlots: { openTime: string; closeTime: string }[] = []
-
-  // Check for schedule overrides first (holidays / emergency closures).
-  // Uses findUnique — @@unique([restaurantId, date]) guarantees at most one row.
   const override = await db.scheduleOverride.findUnique({
     where: { restaurantId_date: { restaurantId, date: reqDate } },
     include: { slots: true },
   })
 
-  if (override) {
-    if (override.isClosed) {
-      return { valid: false, reason: 'RESTAURANT_CLOSED' }
-    }
-    // Override exists and restaurant is open, but no slots configured → closed
-    if (!override.slots || override.slots.length === 0) {
-      return { valid: false, reason: 'RESTAURANT_CLOSED' }
-    }
-    timeSlots = override.slots
-  } else {
-    const operatingHours = await db.operatingHours.findFirst({
-      where: { restaurantId, dayOfWeek },
-      include: { slots: true },
-    })
+  const operatingHours = override ? null : await db.operatingHours.findFirst({
+    where: { restaurantId, dayOfWeek },
+    include: { slots: true },
+  })
 
-    if (!operatingHours || operatingHours.slots.length === 0) {
-      return { valid: false, reason: 'NO_OPERATING_HOURS' }
+  const effectiveSlots = getEffectiveScheduleSlots(override, operatingHours)
+
+  if (!effectiveSlots) {
+    if (override) {
+      return { valid: false, reason: 'RESTAURANT_CLOSED' }
     }
-    timeSlots = operatingHours.slots
+    return { valid: false, reason: 'NO_OPERATING_HOURS' }
   }
 
   // Verify the requested block fits entirely within at least one continuous slot
-  const reqStartMins = timeToMinutes(time)
-  const reqEndMins = reqStartMins + durationMins
+  const isValid = fitsInSchedule(time, durationMins, effectiveSlots)
 
-  for (const slot of timeSlots) {
-    const slotStartMins = timeToMinutes(slot.openTime)
-    const slotEndMins = timeToMinutes(slot.closeTime)
-    if (reqStartMins >= slotStartMins && reqEndMins <= slotEndMins) {
-      return { valid: true }
-    }
+  if (isValid) {
+    return { valid: true }
   }
 
   return { valid: false, reason: 'OUTSIDE_OPERATING_HOURS' }
@@ -115,12 +103,22 @@ export async function checkAvailability({
 
   // 2. Determine Duration
   const duration = getTurnTime(partySize)
-  const requestedStart = absoluteStartTime || combineDateAndTime(date, time)
+  
+  let requestedStart = absoluteStartTime
+  if (!requestedStart) {
+    const restaurant = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { timezone: true } })
+    if (!restaurant) throw new Error("Restaurant not found")
+    requestedStart = toRestaurantUtcDate(date, time, restaurant.timezone)
+  }
+  
   const requestedEnd = new Date(requestedStart.getTime() + duration * 60000)
 
   // 4. Fetch Conflicts
   // Add our reset buffer to perfectly separate back-to-back bookings
-  const conflictEndTime = new Date(requestedEnd.getTime() + BUFFER_TIME * 60000)
+  // A conflict occurs if the existing reservation starts before we finish cleaning (requestedEnd + buffer)
+  // AND the existing reservation finishes cleaning AFTER we want to start (requestedStart - buffer)
+  const requestEndWithBuffer = new Date(requestedEnd.getTime() + BUFFER_TIME * 60000)
+  const requestStartMinusBuffer = new Date(requestedStart.getTime() - BUFFER_TIME * 60000)
 
   const activeReservations = await db.reservation.findMany({
     where: {
@@ -129,10 +127,10 @@ export async function checkAvailability({
       status: {
         in: ["PENDING", "CONFIRMED", "WAITLISTED", "ARRIVED", "PARTIALLY_ARRIVED", "SEATED"],
       },
-      // Conflict condition: (ExistingStart < RequestedEnd + Buffer) && (ExistingEnd > RequestedStart)
+      // Conflict condition: (ExistingStart < RequestedEnd + Buffer) && (ExistingEnd > RequestedStart - Buffer)
       AND: [
-        { startTime: { lt: conflictEndTime } },
-        { endTime: { gt: requestedStart } },
+        { startTime: { lt: requestEndWithBuffer } },
+        { endTime: { gt: requestStartMinusBuffer } },
       ],
     },
     select: {
@@ -179,4 +177,100 @@ export async function checkAvailability({
     viableTables, // Optionally return the array for frontend selection grids
     table: viableTables[0]
   }
+}
+
+export async function getAvailableSlotsForDate({
+  restaurantId,
+  date,
+  partySize,
+  restaurantTimezone,
+}: {
+  restaurantId: string
+  date: string
+  partySize: number
+  restaurantTimezone: string
+}) {
+  const reqDate = parseDateStr(date)
+  const dayOfWeek = reqDate.getUTCDay()
+
+  // 1. Get Effective Schedule
+  const override = await prisma.scheduleOverride.findUnique({
+    where: { restaurantId_date: { restaurantId, date: reqDate } },
+    include: { slots: true },
+  })
+
+  const operatingHours = override ? null : await prisma.operatingHours.findFirst({
+    where: { restaurantId, dayOfWeek },
+    include: { slots: true },
+  })
+
+  const effectiveSlots = getEffectiveScheduleSlots(override, operatingHours)
+  if (!effectiveSlots || effectiveSlots.length === 0) return []
+
+  // 2. Fetch Suitable Tables
+  const suitableTables = await prisma.table.findMany({
+    where: {
+      diningArea: { restaurantId },
+      isActive: true,
+      minCapacity: { lte: partySize },
+      maxCapacity: { gte: partySize },
+    },
+    select: { id: true }
+  })
+
+  if (suitableTables.length === 0) return []
+  const suitableTableIds = suitableTables.map(t => t.id)
+
+  // 3. Fetch Relevant Reservations (only those taking suitable tables)
+  const activeReservations = await prisma.reservation.findMany({
+    where: {
+      restaurantId,
+      reservationDate: reqDate,
+      status: {
+        in: ["PENDING", "CONFIRMED", "WAITLISTED", "ARRIVED", "PARTIALLY_ARRIVED", "SEATED"],
+      },
+      tables: {
+        some: { tableId: { in: suitableTableIds } }
+      }
+    },
+    select: {
+      startTime: true,
+      endTime: true,
+      tables: { select: { tableId: true } }
+    }
+  })
+
+  // 4. Generate Potential Slots
+  const durationMins = getTurnTime(partySize)
+  const isToday = date === getRestaurantTodayStr(restaurantTimezone)
+  const potentialSlots = generateAvailableTimeSlots(effectiveSlots, durationMins, isToday, restaurantTimezone)
+
+  const validSlots: string[] = []
+
+  // 5. Filter slots by actual table availability
+  for (const slotTime of potentialSlots) {
+    const requestedStart = toRestaurantUtcDate(date, slotTime, restaurantTimezone)
+    const requestedEnd = new Date(requestedStart.getTime() + durationMins * 60000)
+    
+    const requestEndWithBuffer = new Date(requestedEnd.getTime() + BUFFER_TIME * 60000)
+    const requestStartMinusBuffer = new Date(requestedStart.getTime() - BUFFER_TIME * 60000)
+
+    const takenTables = new Set<string>()
+
+    for (const res of activeReservations) {
+      if (res.startTime < requestEndWithBuffer && res.endTime > requestStartMinusBuffer) {
+        for (const t of res.tables) {
+          if (suitableTableIds.includes(t.tableId)) {
+            takenTables.add(t.tableId)
+          }
+        }
+      }
+    }
+
+    if (suitableTableIds.length - takenTables.size > 0) {
+      validSlots.push(slotTime)
+    }
+  }
+
+  return validSlots
 }
