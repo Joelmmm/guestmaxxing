@@ -31,6 +31,12 @@
       "sourceType": "github",
       "computedHash": "c849747348f37b3a63db4b663b85358d0d1ac8a45ec8f860c1b8ed95334d84a8"
     },
+    "resend": {
+      "source": "resend/resend-skills",
+      "sourceType": "github",
+      "skillPath": "skills/resend/SKILL.md",
+      "computedHash": "27aa881e2a230f9ea335cd1ee9f847a0b00b38a9b73eaf2a365c63abb9cb4980"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
