@@ -87,6 +87,10 @@ model Guest {
   phone     String?
   notes     String? // E.g., "VIP", "Allergic to shellfish"
 
+  // Bridge to Better Auth identity (nullable — walk-in bookings have no account)
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   // Relationships
   reservations Reservation[]
 
@@ -94,6 +98,7 @@ model Guest {
   updatedAt DateTime @updatedAt
 
   @@index([phone])
+  @@index([userId])
 }
 
 // Operating Hours (contains multiple slots for split shifts)
@@ -216,6 +221,7 @@ model User {
   accounts      Account[]
   members       Member[]
   invitations   Invitation[]
+  guest         Guest?       // Back-relation from Guest.userId bridge
 
   @@unique([email])
   @@map("user")

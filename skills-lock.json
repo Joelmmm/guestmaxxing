@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "behavioral-product-design": {
+      "source": "refoundai/lenny-skills",
+      "sourceType": "github",
+      "skillPath": "skills/behavioral-product-design/SKILL.md",
+      "computedHash": "39ece7ec8d90815a69256ab46c87ff2103083ff6b274f34818c6139a0c057694"
+    },
     "better-auth-best-practices": {
       "source": "better-auth/skills",
       "sourceType": "github",
@@ -51,6 +57,12 @@
       "source": "obra/superpowers",
       "sourceType": "github",
       "computedHash": "72e9ab72627e4fd8ed26a582e82309a98ecdc4f6e1c99418430ac05682c9e91d"
+    },
+    "two-factor-authentication-best-practices": {
+      "source": "better-auth/skills",
+      "sourceType": "github",
+      "skillPath": "better-auth/twoFactor/SKILL.md",
+      "computedHash": "c4f3a299c62c1985b774b7c28e53b7e55c565dbf973fd52b08899e4bcfffa3f9"
     },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",

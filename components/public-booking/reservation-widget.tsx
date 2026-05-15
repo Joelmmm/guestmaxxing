@@ -1,17 +1,17 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useTransition } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isBefore, startOfDay } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
-import { getRestaurantTodayStr, parseDateForCalendar, getRestaurantTodayForCalendar } from "@/lib/time-utils"
-import { CalendarBlank, Clock, CheckCircle, Spinner } from "@phosphor-icons/react"
+import { getRestaurantTodayForCalendar, parseDateForCalendar } from "@/lib/time-utils"
+import { CalendarBlank, Clock, CheckCircle, Spinner, ShieldCheck } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { reservationSchema, type ReservationFormValues } from "@/lib/validations/reservation"
 import type { Prisma } from "@/generated/client"
 import { cn } from "@/lib/utils"
-import { getTurnTime, getEffectiveScheduleSlots, generateAvailableTimeSlots } from "@/lib/schedule-utils"
+import { getEffectiveScheduleSlots } from "@/lib/schedule-utils"
 import {
   Form,
   FormControl,
@@ -40,6 +40,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { OtpStep } from "./otp-step"
+import { authClient } from "@/lib/auth-client"
+import { upsertGuestForUserAction } from "@/app/actions/guests"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,7 +55,14 @@ type RestaurantWithSchedule = Prisma.RestaurantGetPayload<{
   }
 }>
 
-type Step = "setup" | "guest-info" | "success"
+/**
+ * Widget steps:
+ *  setup      → date / party size / time slot selection
+ *  guest-info → name / email / phone form
+ *  verifying  → OTP step (first-time guest only)
+ *  success    → confirmation screen
+ */
+type Step = "setup" | "guest-info" | "verifying" | "success"
 
 // ---------------------------------------------------------------------------
 // Schedule resolution helpers (pure, no API calls)
@@ -61,10 +71,17 @@ type Step = "setup" | "guest-info" | "success"
 function isClosedDay(date: Date, restaurant: RestaurantWithSchedule): boolean {
   const dateStr = formatInTimeZone(date, "UTC", "yyyy-MM-dd")
   const override = restaurant.scheduleOverrides.find(
-    (o) => formatInTimeZone(new Date(`${typeof o.date === 'string' ? o.date : (o.date as Date).toISOString().split('T')[0]}T00:00:00.000Z`), "UTC", "yyyy-MM-dd") === dateStr
+    (o) =>
+      formatInTimeZone(
+        new Date(
+          `${typeof o.date === "string" ? o.date : (o.date as Date).toISOString().split("T")[0]}T00:00:00.000Z`
+        ),
+        "UTC",
+        "yyyy-MM-dd"
+      ) === dateStr
   )
-  
-  const [year, month, day] = dateStr.split('-').map(Number)
+
+  const [year, month, day] = dateStr.split("-").map(Number)
   const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getDay()
   const hours = restaurant.operatingHours.find((h) => h.dayOfWeek === dayOfWeek)
 
@@ -79,6 +96,14 @@ function isClosedDay(date: Date, restaurant: RestaurantWithSchedule): boolean {
 export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSchedule }) {
   const [step, setStep] = useState<Step>("setup")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Tracks whether we've finished the initial session check.
+  // Prevents a flash where the widget briefly shows an OTP prompt.
+  const [sessionChecked, setSessionChecked] = useState(false)
+  // Set to true if getSession() finds a valid session on mount.
+  const [hasSession, setHasSession] = useState(false)
+
+  const [, startTransition] = useTransition()
 
   const form = useForm<ReservationFormValues>({
     resolver: zodResolver(reservationSchema),
@@ -96,6 +121,24 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [isLoadingSlots, setIsLoadingSlots] = useState(false)
 
+  // ── Session check on mount ─────────────────────────────────────────────────
+  // Per spec: if the guest already has a valid session, skip the OTP step.
+  useEffect(() => {
+    authClient.getSession().then(({ data }) => {
+      if (data?.session) {
+        setHasSession(true)
+        // Pre-fill guestData.email from the session user if available
+        if (data.user?.email) {
+          form.setValue("guestData.email", data.user.email)
+        }
+        // Populate guestId if the session user has a linked guest
+        // (handled server-side during reservation creation via the userId bridge)
+      }
+      setSessionChecked(true)
+    })
+  }, [form])
+
+  // ── Slot availability ──────────────────────────────────────────────────────
   useEffect(() => {
     async function fetchSlots() {
       if (!reservationDate || !partySize) {
@@ -105,7 +148,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
 
       setIsLoadingSlots(true)
       try {
-        const res = await fetch(`/api/availability/public?slug=${restaurant.slug}&date=${reservationDate}&partySize=${partySize}`)
+        const res = await fetch(
+          `/api/availability/public?slug=${restaurant.slug}&date=${reservationDate}&partySize=${partySize}`
+        )
         if (res.ok) {
           const data = await res.json()
           setAvailableSlots(data.availableSlots || [])
@@ -121,7 +166,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
     }
 
     fetchSlots()
-  }, [reservationDate, partySize, restaurant.id])
+  }, [reservationDate, partySize, restaurant.slug])
 
   const selectedSlot = startTime
 
@@ -136,9 +181,56 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
     if (valid) setStep("guest-info")
   }
 
-  async function onSubmit(data: ReservationFormValues) {
+  // ── Called when the guest-info form is complete ────────────────────────────
+  // If the guest has a session → submit directly.
+  // If not → go to OTP verification first.
+  async function handleGuestInfoNext() {
+    const valid = await form.trigger(["guestData.firstName", "guestData.lastName", "guestData.email"])
+    if (!valid) return
+
+    const email = form.getValues("guestData.email")
+
+    // Returning guest with session: skip OTP entirely
+    if (hasSession || !email) {
+      await submitReservation()
+      return
+    }
+
+    // First-time guest: move to OTP step
+    setStep("verifying")
+  }
+
+  // ── Called by OtpStep on successful verification ───────────────────────────
+  // Step 5 in the spec: upsert the Guest record linked to the new User.
+  // Then submit the reservation with the resolved guestId.
+  async function handleOtpVerified(userId: string) {
+    startTransition(async () => {
+      const guestData = form.getValues("guestData")
+
+      const result = await upsertGuestForUserAction({
+        firstName: guestData.firstName,
+        lastName: guestData.lastName,
+        phone: guestData.phone,
+      })
+
+      if (!result.success || !result.guestId) {
+        toast.error("Could not link your account. Please try again.")
+        setStep("guest-info")
+        return
+      }
+
+      // Stamp guestId onto the form so the reservation service uses it directly
+      form.setValue("guestId", result.guestId)
+      setHasSession(true)
+      await submitReservation()
+    })
+  }
+
+  // ── Core reservation submission ────────────────────────────────────────────
+  async function submitReservation() {
     setIsSubmitting(true)
     try {
+      const data = form.getValues()
       const res = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,7 +243,6 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
       }
 
       if (res.status === 409) {
-        // Map conflict to the time-slot field so the user knows to pick differently
         form.setError("tableIds", {
           type: "manual",
           message: "No tables available for this time. Please choose a different slot.",
@@ -162,20 +253,38 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
 
       const text = await res.text()
       toast.error(text || "Something went wrong. Please try again.")
+      setStep("guest-info")
     } catch {
       toast.error("Could not reach the server. Please try again.")
+      setStep("guest-info")
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  async function onSubmit(data: ReservationFormValues) {
+    // This fires from the form's native submit (guest-info step confirm button).
+    // We intercept it via handleGuestInfoNext instead of letting it fall through,
+    // but keeping onSubmit wired for the returning-guest direct path.
+    void data // consumed by submitReservation via form.getValues()
+    await handleGuestInfoNext()
+  }
+
   const today = getRestaurantTodayForCalendar(restaurant.timezone)
 
-  // Friendly summary of the selected slot for the guest-info step header
+  // Friendly summary displayed in headers and the success screen
   const selectionSummary =
     reservationDate && selectedSlot
       ? `${formatInTimeZone(new Date(`${reservationDate}T12:00:00.000Z`), "UTC", "MMMM d")} at ${selectedSlot} · ${form.getValues("partySize")} ${form.getValues("partySize") === 1 ? "person" : "people"}`
       : null
+
+  // ── Step descriptions ──────────────────────────────────────────────────────
+  const stepDescription = {
+    setup: "Choose your date, party size, and time.",
+    "guest-info": selectionSummary ?? "Enter your contact details.",
+    verifying: "Check your email for a verification code.",
+    success: "Your reservation is confirmed!",
+  }[step]
 
   return (
     <Form {...form}>
@@ -183,12 +292,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
         <Card>
           <CardHeader>
             <CardTitle>Make a Reservation</CardTitle>
-            <CardDescription>
-              {step === "setup" && "Choose your date, party size, and time."}
-              {step === "guest-info" &&
-                (selectionSummary ?? "Enter your contact details.")}
-              {step === "success" && "Your reservation is confirmed!"}
-            </CardDescription>
+            <CardDescription>{stepDescription}</CardDescription>
           </CardHeader>
 
           <Separator />
@@ -217,7 +321,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                               )}
                             >
                               <CalendarBlank data-icon="inline-start" />
-                              {field.value ? formatInTimeZone(parseDateForCalendar(field.value), "UTC", "PPP") : "Pick a date"}
+                              {field.value
+                                ? formatInTimeZone(parseDateForCalendar(field.value), "UTC", "PPP")
+                                : "Pick a date"}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
@@ -234,8 +340,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                               }
                             }}
                             disabled={(date) =>
-                              isBefore(startOfDay(date), today) ||
-                              isClosedDay(date, restaurant)
+                              isBefore(startOfDay(date), today) || isClosedDay(date, restaurant)
                             }
                             initialFocus
                           />
@@ -327,6 +432,14 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
             {/* ── STEP 2: Guest info ── */}
             {step === "guest-info" && (
               <div className="flex flex-col gap-4">
+                {/* Session badge for returning guests */}
+                {hasSession && (
+                  <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                    <ShieldCheck className="size-4 shrink-0 text-green-500" />
+                    <span>Verified — no code needed this time.</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -363,10 +476,19 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                     <FormItem>
                       <FormLabel>
                         Email{" "}
-                        <span className="text-muted-foreground font-normal">(optional)</span>
+                        {hasSession ? null : (
+                          <span className="text-muted-foreground font-normal">(used to verify your booking)</span>
+                        )}
                       </FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="jane@example.com" {...field} />
+                        <Input
+                          type="email"
+                          placeholder="jane@example.com"
+                          {...field}
+                          // Prevent editing if email comes from session
+                          readOnly={hasSession}
+                          className={hasSession ? "bg-muted cursor-default" : undefined}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -390,6 +512,17 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                   )}
                 />
               </div>
+            )}
+
+            {/* ── STEP 3: OTP Verification (first-time guest only) ── */}
+            {step === "verifying" && (
+              <OtpStep
+                email={form.getValues("guestData.email") || ""}
+                firstName={form.getValues("guestData.firstName")}
+                lastName={form.getValues("guestData.lastName")}
+                onVerified={handleOtpVerified}
+                onBack={() => setStep("guest-info")}
+              />
             )}
 
             {/* ── SUCCESS ── */}
@@ -427,10 +560,24 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
               </Button>
             )}
             {step === "guest-info" && (
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Confirming…" : "Confirm Reservation"}
+              <Button
+                type="button"
+                onClick={handleGuestInfoNext}
+                disabled={isSubmitting || !sessionChecked}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner className="animate-spin mr-2" />
+                    Confirming…
+                  </>
+                ) : hasSession ? (
+                  "Confirm Reservation"
+                ) : (
+                  "Continue"
+                )}
               </Button>
             )}
+            {/* No footer buttons during OTP or success steps */}
           </CardFooter>
         </Card>
       </form>
