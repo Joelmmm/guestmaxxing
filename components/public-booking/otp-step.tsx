@@ -3,7 +3,13 @@
 import { useState, useRef, useEffect } from "react"
 import { Envelope, Spinner, ArrowLeft, ArrowCounterClockwise, ShieldCheck } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from "@/components/ui/input-otp"
+import { REGEXP_ONLY_DIGITS } from "input-otp"
 import { authClient } from "@/lib/auth-client"
 
 interface OtpStepProps {
@@ -23,7 +29,6 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
   const [otp, setOtp] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
   const [resendCooldown, setResendCooldown] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Auto-send OTP when the component mounts
@@ -31,13 +36,6 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
     sendOtp()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Focus the OTP input when we enter the entry phase
-  useEffect(() => {
-    if (phase === "entry") {
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
-  }, [phase])
 
   // Cleanup cooldown interval on unmount
   useEffect(() => {
@@ -79,14 +77,15 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
     startCooldown(60)
   }
 
-  async function handleVerify() {
-    if (otp.length < 6) return
+  async function handleVerify(value?: string) {
+    const code = value ?? otp
+    if (code.length < 6) return
     setPhase("verifying")
     setErrorMsg("")
 
     const { data, error } = await authClient.signIn.emailOtp({
       email,
-      otp,
+      otp: code,
       // Pass name so Better Auth can populate it on first-time registration
       name: firstName,
     })
@@ -105,15 +104,7 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
     onVerified(data.user.id)
   }
 
-  // Auto-submit when all 6 digits are entered
-  function handleOtpChange(value: string) {
-    const digits = value.replace(/\D/g, "").slice(0, 6)
-    setOtp(digits)
-    if (digits.length === 6) {
-      // defer to next tick so state updates settle
-      setTimeout(() => handleVerify(), 0)
-    }
-  }
+  const isDisabled = phase === "sending" || phase === "verifying"
 
   return (
     <div className="flex flex-col gap-6">
@@ -133,28 +124,38 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
 
       {/* OTP Input + Verify button */}
       <div className="flex flex-col gap-3">
-        <Input
-          ref={inputRef}
-          id="otp-input"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="\d{6}"
-          maxLength={6}
-          placeholder="000000"
-          value={otp}
-          onChange={(e) => handleOtpChange(e.target.value)}
-          disabled={phase === "sending" || phase === "verifying"}
-          className="text-center text-2xl tracking-[0.5em] font-mono h-14"
-          aria-label="One-time passcode"
-        />
+        <div className="flex justify-center">
+          <InputOTP
+            maxLength={6}
+            pattern={REGEXP_ONLY_DIGITS}
+            inputMode="numeric"
+            value={otp}
+            onChange={setOtp}
+            onComplete={handleVerify}
+            disabled={isDisabled}
+            autoFocus={phase === "entry"}
+            aria-label="One-time passcode"
+          >
+            <InputOTPGroup>
+              <InputOTPSlot index={0} className="border" />
+              <InputOTPSlot index={1} className="border" />
+              <InputOTPSlot index={2} className="border" />
+            </InputOTPGroup>
+            <InputOTPSeparator />
+            <InputOTPGroup>
+              <InputOTPSlot index={3} className="border" />
+              <InputOTPSlot index={4} className="border" />
+              <InputOTPSlot index={5} className="border" />
+            </InputOTPGroup>
+          </InputOTP>
+        </div>
         {errorMsg && (
           <p className="text-sm text-destructive text-center">{errorMsg}</p>
         )}
         <Button
           type="button"
-          onClick={handleVerify}
-          disabled={otp.length < 6 || phase === "sending" || phase === "verifying"}
+          onClick={() => handleVerify()}
+          disabled={otp.length < 6 || isDisabled}
           className="w-full"
         >
           {phase === "verifying" ? (
@@ -178,7 +179,6 @@ export function OtpStep({ email, firstName, onVerified, onBack }: OtpStepProps) 
           Sending code…
         </div>
       )}
-
 
       {/* Resend */}
       {phase === "entry" && (
