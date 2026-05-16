@@ -64,6 +64,7 @@ export function RestaurantDialog({
       timezone: "America/Santiago",
       slug: "",
       isActive: true,
+      isAcceptingReservations: true,
     },
   })
 

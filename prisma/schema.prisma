@@ -21,7 +21,8 @@ model Restaurant {
   timezone     String  @default("America/Santiago") // CRITICAL for date math
   contactEmail String
   contactPhone String?
-  isActive     Boolean @default(true)
+  isActive                Boolean @default(true)
+  isAcceptingReservations Boolean @default(true)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

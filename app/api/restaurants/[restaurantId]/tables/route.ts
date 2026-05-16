@@ -10,17 +10,16 @@ export async function GET(
 ) {
   try {
     const { restaurantId } = await params
-    
+
     const access = await verifyRestaurantAccess(restaurantId);
     if (!access.isAuthorized) return access.response;
 
     const today = new Date()
-    
+
     // Fetch dining areas with their tables and active reservations
     const diningAreas = await prisma.diningArea.findMany({
       where: {
         restaurantId,
-        isActive: true,
       },
       include: {
         tables: {
@@ -69,7 +68,7 @@ export async function POST(
 ) {
   try {
     const { restaurantId } = await params
-    
+
     const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
     if (!access.isAuthorized) return access.response;
 

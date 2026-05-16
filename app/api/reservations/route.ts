@@ -35,7 +35,11 @@ export async function POST(req: Request) {
       return validation.response
     }
 
-    const reservation = await createReservation(validation.data)
+    const { getServerRestaurantAccess } = await import('@/lib/api-utils')
+    const access = await getServerRestaurantAccess(validation.data.restaurantId);
+    const isInternal = access.isAuthorized;
+
+    const reservation = await createReservation(validation.data, isInternal)
 
     return NextResponse.json(reservation)
   } catch (error: any) {
@@ -51,6 +55,9 @@ export async function POST(req: Request) {
       }
       if (error.message === 'OUTSIDE_OPERATING_HOURS') {
         return new NextResponse('The requested time falls outside operating hours.', { status: 409 })
+      }
+      if (error.message === 'NOT_ACCEPTING_RESERVATIONS') {
+        return new NextResponse('The restaurant is not currently accepting online reservations.', { status: 409 })
       }
       if (error.message === 'GUEST_INFO_REQUIRED') {
         return new NextResponse('Guest information is required', { status: 400 })

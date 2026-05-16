@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { ReservationWidget } from "@/components/public-booking/reservation-widget"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Metadata } from "next"
 
 interface ReservePageProps {
@@ -35,7 +42,7 @@ export default async function ReservePage({ params }: ReservePageProps) {
     }
   })
 
-  if (!restaurant || !restaurant.isActive) {
+  if (!restaurant) {
     return notFound()
   }
 
@@ -49,7 +56,21 @@ export default async function ReservePage({ params }: ReservePageProps) {
           <p className="text-zinc-400 text-lg">Secure your table in seconds.</p>
         </header>
 
-        <ReservationWidget restaurant={restaurant} />
+        {restaurant.isAcceptingReservations ? (
+          <ReservationWidget restaurant={restaurant} />
+        ) : (
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>Reservations Closed</CardTitle>
+              <CardDescription>
+                Online reservations are currently paused.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center text-muted-foreground pb-8">
+              <p>Please check back later or contact the restaurant directly to book a table.</p>
+            </CardContent>
+          </Card>
+        )}
 
         <footer className="text-center text-zinc-600 text-sm py-4">
           Powered by Reserva &bull; 2026

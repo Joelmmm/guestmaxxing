@@ -40,7 +40,7 @@ export async function getReservations(restaurantId: string, date?: string, statu
   })
 }
 
-export async function createReservation(data: ReservationFormValues) {
+export async function createReservation(data: ReservationFormValues, isInternal: boolean = false) {
   const {
     restaurantId,
     guestId,
@@ -178,9 +178,13 @@ export async function createReservation(data: ReservationFormValues) {
             time: requestTime,
             partySize,
             absoluteStartTime,
+            isInternal,
           }, tx)
 
           if (!availability.available || !availability.table) {
+            if (availability.reason === "Restaurant is not currently accepting online reservations.") {
+              throw new Error('NOT_ACCEPTING_RESERVATIONS')
+            }
             throw new Error('NO_TABLES_AVAILABLE')
           }
           finalTableIds = [availability.table.id]
@@ -220,7 +224,8 @@ export async function createReservation(data: ReservationFormValues) {
         error.message === 'SPECIFIC_TABLES_BOOKED' ||
         error.message === 'NO_TABLES_AVAILABLE' ||
         error.message === 'RESTAURANT_CLOSED' ||
-        error.message === 'OUTSIDE_OPERATING_HOURS'
+        error.message === 'OUTSIDE_OPERATING_HOURS' ||
+        error.message === 'NOT_ACCEPTING_RESERVATIONS'
       )) {
         throw error;
       }

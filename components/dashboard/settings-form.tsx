@@ -47,7 +47,7 @@ export function SettingsForm({ restaurant, className, canManage = false }: Setti
       contactEmail: restaurant.contactEmail || "",
       contactPhone: restaurant.contactPhone || "",
       timezone: restaurant.timezone || "America/Santiago",
-      isActive: restaurant.isActive ?? true,
+      isAcceptingReservations: restaurant.isAcceptingReservations ?? true,
     },
   })
 
@@ -157,7 +157,7 @@ export function SettingsForm({ restaurant, className, canManage = false }: Setti
 
             <FormField
               control={form.control}
-              name="isActive"
+              name="isAcceptingReservations"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">

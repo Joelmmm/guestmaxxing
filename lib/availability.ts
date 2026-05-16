@@ -71,14 +71,28 @@ export async function checkAvailability({
   time,
   partySize,
   absoluteStartTime,
+  isInternal = false,
 }: {
   restaurantId: string
   date: string
   time: string
   partySize: number
   absoluteStartTime?: Date
+  isInternal?: boolean
 }, tx?: Prisma.TransactionClient) {
   const db = tx || prisma
+
+  const restaurant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { timezone: true, isAcceptingReservations: true },
+  })
+
+  if (!restaurant) throw new Error("Restaurant not found")
+
+  if (!isInternal && !restaurant.isAcceptingReservations) {
+    return { available: false, reason: "Restaurant is not currently accepting online reservations." }
+  }
+
   // We use UTC date strings in the DB to strictly represent the calendar day regardless of server timezone.
   const reqDate = new Date(`${date}T00:00:00.000Z`)
   const dayOfWeek = reqDate.getUTCDay()
@@ -106,8 +120,6 @@ export async function checkAvailability({
   
   let requestedStart = absoluteStartTime
   if (!requestedStart) {
-    const restaurant = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { timezone: true } })
-    if (!restaurant) throw new Error("Restaurant not found")
     requestedStart = toRestaurantUtcDate(date, time, restaurant.timezone)
   }
   
@@ -192,6 +204,15 @@ export async function getAvailableSlotsForDate({
 }) {
   const reqDate = parseDateStr(date)
   const dayOfWeek = reqDate.getUTCDay()
+
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { isAcceptingReservations: true },
+  })
+
+  if (!restaurant?.isAcceptingReservations) {
+    return []
+  }
 
   // 1. Get Effective Schedule
   const override = await prisma.scheduleOverride.findUnique({

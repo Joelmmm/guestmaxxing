@@ -12,6 +12,7 @@ export const restaurantSchema = z.object({
   contactPhone: z.string().trim().or(z.literal("")).optional(),
   timezone: z.string().trim().min(1, "Timezone is required"),
   isActive: z.boolean(),
+  isAcceptingReservations: z.boolean(),
 })
 
 export type RestaurantFormValues = z.infer<typeof restaurantSchema>

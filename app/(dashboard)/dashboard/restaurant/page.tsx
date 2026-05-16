@@ -69,10 +69,17 @@ export default async function RestaurantPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Current Status</p>
+                <p className="text-sm font-medium text-muted-foreground">Account Status</p>
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full ${restaurant.isActive ? "bg-green-500" : "bg-red-500"}`} />
                   <p className="text-sm">{restaurant.isActive ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Online Bookings</p>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${restaurant.isAcceptingReservations ? "bg-green-500" : "bg-amber-500"}`} />
+                  <p className="text-sm">{restaurant.isAcceptingReservations ? "Accepting Reservations" : "Paused"}</p>
                 </div>
               </div>
             </CardContent>
