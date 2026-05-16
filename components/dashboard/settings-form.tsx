@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { restaurantSchema, type RestaurantFormValues } from "@/lib/validations/restaurant"
 import { cn } from "@/lib/utils"
+import { updateRestaurantAction } from "@/app/actions/restaurants"
 
 interface SettingsFormProps {
   restaurant: Restaurant
@@ -37,10 +38,10 @@ interface SettingsFormProps {
 }
 
 export function SettingsForm({ restaurant, className, canManage = false }: SettingsFormProps) {
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [isPending, startTransition] = React.useTransition()
   const router = useRouter()
 
-  const form = useForm({
+  const form = useForm<RestaurantFormValues>({
     resolver: zodResolver(restaurantSchema),
     defaultValues: {
       name: restaurant.name || "",
@@ -48,32 +49,21 @@ export function SettingsForm({ restaurant, className, canManage = false }: Setti
       contactPhone: restaurant.contactPhone || "",
       timezone: restaurant.timezone || "America/Santiago",
       isAcceptingReservations: restaurant.isAcceptingReservations ?? true,
+      isActive: restaurant.isActive ?? true,
     },
   })
 
-  async function onSubmit(values: RestaurantFormValues) {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/restaurants/${restaurant.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(values),
-      })
+  function onSubmit(values: RestaurantFormValues) {
+    startTransition(async () => {
+      const result = await updateRestaurantAction(restaurant.id, values)
 
-      if (!response.ok) {
-        throw new Error("Failed to update restaurant")
+      if (result.success) {
+        toast.success("Settings updated successfully")
+        router.refresh()
+      } else {
+        toast.error(result.error || "Something went wrong. Please try again.")
       }
-
-      toast.success("Settings updated successfully")
-      router.refresh()
-    } catch (error) {
-      toast.error("Something went wrong. Please try again.")
-      console.error(error)
-    } finally {
-      setIsLoading(false)
-    }
+    })
   }
 
   return (
@@ -177,10 +167,32 @@ export function SettingsForm({ restaurant, className, canManage = false }: Setti
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Active Status</FormLabel>
+                    <FormDescription>
+                      If disabled, your restaurant will not be visible to customers.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={!canManage}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             {canManage && (
               <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Saving..." : "Save Changes"}
+                <Button type="submit" disabled={isPending}>
+                  {isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             )}

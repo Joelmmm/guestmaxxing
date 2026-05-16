@@ -41,6 +41,7 @@ export async function GET(req: Request, { params }: RestaurantParams) {
 
 import { validateBody } from '@/lib/api-utils'
 import { restaurantSchema } from '@/lib/validations/restaurant'
+import { updateRestaurant } from '@/lib/services/restaurants'
 
 export async function PATCH(req: Request, { params }: RestaurantParams) {
   try {
@@ -60,10 +61,7 @@ export async function PATCH(req: Request, { params }: RestaurantParams) {
       return validation.response
     }
 
-    const restaurant = await prisma.restaurant.update({
-      where: { id: restaurantId },
-      data: validation.data,
-    })
+    const restaurant = await updateRestaurant(restaurantId, validation.data)
 
     return NextResponse.json(restaurant)
   } catch (error) {
