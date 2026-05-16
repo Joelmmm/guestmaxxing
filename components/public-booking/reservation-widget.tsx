@@ -191,7 +191,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
     const email = form.getValues("guestData.email")
 
     // Returning guest with session: skip OTP entirely
-    if (hasSession || !email) {
+    if (hasSession) {
       await submitReservation()
       return
     }

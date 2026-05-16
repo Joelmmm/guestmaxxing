@@ -237,7 +237,7 @@ export function ReservationDialog({
                 name="guestData.email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email (Optional)</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input placeholder="john@example.com" {...field} />
                     </FormControl>

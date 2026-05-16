@@ -11,7 +11,7 @@ export const reservationSchema = z.object({
   guestData: z.object({
     firstName: z.string().trim().min(2, "First name must be at least 2 characters"),
     lastName: z.string().trim().min(2, "Last name must be at least 2 characters"),
-    email: z.union([z.literal(""), z.string().email("Please enter a valid email address.")]).optional(),
+    email: z.email("Please enter a valid email address."),
     phone: z.string().trim().or(z.literal("")).optional(),
   }),
   partySize: z.number().int().min(1, "Party size must be at least 1 person"),
