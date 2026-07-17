@@ -34,6 +34,6 @@ Impatient users may click "Resend Code" multiple times, incurring high SMS/Email
 
 ## 5. The Accountless Management Hub
 Modern UX discourages forcing users to create an account for a single reservation.
-* **The Solution:** The confirmation email includes a link to guestmaxing.com/manage. When the guest arrives there, they enter their email and receive a new OTP — no password, no separate signed-token infrastructure.
+* **The Solution:** The confirmation email includes a link to guestmaxxing.com/manage. When the guest arrives there, they enter their email and receive a new OTP — no password, no separate signed-token infrastructure.
 * This reuses the `email-otp` plugin already powering pre-booking verification, so there is nothing extra to build or rotate.
 * **Note:** An earlier version of this doc described a `?token=xyz987` magic-link approach. That pattern was superseded by the OTP re-auth decision in `guest-auth-integration.md` and should not be implemented.

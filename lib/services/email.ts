@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY || 're_mock_key');
 
 // Define your default From address (use the sandbox for testing)
-const DEFAULT_FROM = 'Guestmaxing <onboarding@resend.dev>';
+const DEFAULT_FROM = 'Guestmaxxing <onboarding@resend.dev>';
 
 /**
  * Sends a Team Invitation email via Better Auth's workflow
@@ -19,8 +19,8 @@ export async function sendTeamInvitation(
     {
       from: DEFAULT_FROM,
       to: [to],
-      subject: `${inviterName} invited you to join ${organizationName} on Guestmaxing`,
-      html: `<p><strong>${inviterName}</strong> has invited you to join the <strong>${organizationName}</strong> workspace on Guestmaxing.</p><p>Click here to join: <a href="${inviteLink}">Accept Invitation</a></p>`,
+      subject: `${inviterName} invited you to join ${organizationName} on Guestmaxxing`,
+      html: `<p><strong>${inviterName}</strong> has invited you to join the <strong>${organizationName}</strong> workspace on Guestmaxxing.</p><p>Click here to join: <a href="${inviteLink}">Accept Invitation</a></p>`,
     },
     // Idempotency key prevents double-sending if the network drops
     { idempotencyKey: `invite-${to}-${Date.now()}` }
@@ -74,12 +74,12 @@ export async function sendOtpEmail(
 ) {
   const subject =
     type === 'sign-in'
-      ? 'Your Guestmaxing booking verification code'
+      ? 'Your Guestmaxxing booking verification code'
       : type === 'email-verification'
-        ? 'Verify your Guestmaxing email address'
+        ? 'Verify your Guestmaxxing email address'
         : type === 'change-email'
-          ? 'Confirm your new Guestmaxing email address'
-          : 'Reset your Guestmaxing password';
+          ? 'Confirm your new Guestmaxxing email address'
+          : 'Reset your Guestmaxxing password';
 
   const headline =
     type === 'sign-in'

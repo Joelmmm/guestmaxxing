@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MapPinIcon, ClockIcon } from "@phosphor-icons/react/dist/ssr";
 
 export const metadata = {
-  title: "Explore Restaurants | Guestmaxing",
+  title: "Explore Restaurants | Guestmaxxing",
   description: "Discover and book the best restaurants in town.",
 };
 
@@ -75,7 +75,7 @@ export default async function RestaurantsPage() {
       <footer className="border-t py-12 bg-background mt-auto">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight text-foreground">Guestmaxing.</span>
+            <span className="text-xl font-bold tracking-tight text-foreground">Guestmaxxing.</span>
             <span className="text-sm text-muted-foreground">© 2026 All rights reserved.</span>
           </div>
         </div>

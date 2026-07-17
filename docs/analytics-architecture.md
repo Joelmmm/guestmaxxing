@@ -1,6 +1,6 @@
 # Analytics Architecture
 
-This document outlines the architectural decisions, patterns, and guidelines used to implement the Analytics Dashboard in the Guestmaxing platform.
+This document outlines the architectural decisions, patterns, and guidelines used to implement the Analytics Dashboard in the Guestmaxxing platform.
 
 ## 1. Overview
 The Analytics feature is designed to provide actionable insights for restaurant operators. It relies on a strictly decoupled architecture that separates data fetching (Service Layer), time-handling (Wall-Clock Intent), and data presentation (Vercel Composition Patterns).

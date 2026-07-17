@@ -1,6 +1,6 @@
 # Organization & Multi-Tenancy Architecture
 
-This document outlines the architectural decisions and product strategies surrounding Users, Organizations, and Restaurants (Multi-Tenancy) within the Guestmaxing platform.
+This document outlines the architectural decisions and product strategies surrounding Users, Organizations, and Restaurants (Multi-Tenancy) within the Guestmaxxing platform.
 
 ## 1. Core Data Model: The B2B Standard
 
@@ -40,7 +40,7 @@ To process the invited staff member seamlessly:
 
 ## 3. Product & Monetization Strategy (PLG)
 
-Allowing invited staff to create their own Organizations later is a core Product-Led Growth (PLG) vector. A host or manager might leave to start their own restaurant and bring Guestmaxing with them.
+Allowing invited staff to create their own Organizations later is a core Product-Led Growth (PLG) vector. A host or manager might leave to start their own restaurant and bring Guestmaxxing with them.
 
 ### The "Side Project" Workflow
 Because of this requirement, Organization creation cannot be locked inside the `(onboarding)` route group (which bounces active users away). Instead, creation lives at a top-level, globally accessible route: `app/organization/create`. Both a brand-new 0-Org user and an existing active 3-Org user can access this route securely to build a new workspace.
