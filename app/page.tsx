@@ -21,7 +21,7 @@ export default function Page() {
             {/* Features Section */}
             <section className="container mx-auto px-6 py-20">
                <div className="text-center max-w-2xl mx-auto mb-16">
-                  <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-4">Why Reserva?</h2>
+                  <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-4">Why Guestmaxing?</h2>
                   <p className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">
                      Elevate your dining management software.
                   </p>
@@ -57,7 +57,7 @@ export default function Page() {
                         Built for <span className="text-primary">Performance</span>.
                      </h2>
                      <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
-                        Under the hood, Reserva uses cutting-edge technologies like Prisma, Next.js, and Better Auth to ensure your data is secure and your interface is blazingly fast.
+                        Under the hood, Guestmaxing uses cutting-edge technologies like Prisma, Next.js, and Better Auth to ensure your data is secure and your interface is blazingly fast.
                      </p>
                      <ul className="mt-10 space-y-4">
                         {[
@@ -91,7 +91,7 @@ export default function Page() {
          <footer className="border-t py-12 bg-background">
             <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold tracking-tight text-foreground">Reserva.</span>
+                  <span className="text-xl font-bold tracking-tight text-foreground">Guestmaxing.</span>
                   <span className="text-sm text-muted-foreground">© 2026 All rights reserved.</span>
                </div>
                <div className="flex gap-8 text-sm font-medium text-muted-foreground">

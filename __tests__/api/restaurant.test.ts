@@ -2,6 +2,7 @@ import { expect, test, describe, beforeEach } from "vitest";
 import { POST } from "@/app/api/restaurants/route";
 import { clearDatabase, prisma } from "@/__tests__/helpers/db";
 import { buildPostRequest, expectOk, expectStatus } from "@/__tests__/helpers/request";
+import { seedRestaurant } from "@/__tests__/helpers/seed";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -43,13 +44,11 @@ describe("POST /api/restaurants", () => {
 
   test("should handle duplicate slugs by appending a suffix", async () => {
     // Pre-seed a restaurant that will conflict on slug
-    await prisma.restaurant.create({
-      data: {
-        name: "Test Restaurant",
-        slug: "test-restaurant",
-        contactEmail: "test1@example.com",
-        timezone: "UTC",
-      },
+    await seedRestaurant({
+      name: "Test Restaurant",
+      slug: "test-restaurant",
+      contactEmail: "test1@example.com",
+      timezone: "UTC",
     });
 
     const req = buildPostRequest(URL, {

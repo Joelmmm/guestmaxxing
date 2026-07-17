@@ -1,10 +1,10 @@
 import { Resend } from 'resend';
 
 // Initialize the SDK using the environment variable
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 're_mock_key');
 
 // Define your default From address (use the sandbox for testing)
-const DEFAULT_FROM = 'Reserva <onboarding@resend.dev>';
+const DEFAULT_FROM = 'Guestmaxing <onboarding@resend.dev>';
 
 /**
  * Sends a Team Invitation email via Better Auth's workflow
@@ -19,8 +19,8 @@ export async function sendTeamInvitation(
     {
       from: DEFAULT_FROM,
       to: [to],
-      subject: `${inviterName} invited you to join ${organizationName} on Reserva`,
-      html: `<p><strong>${inviterName}</strong> has invited you to join the <strong>${organizationName}</strong> workspace on Reserva.</p><p>Click here to join: <a href="${inviteLink}">Accept Invitation</a></p>`,
+      subject: `${inviterName} invited you to join ${organizationName} on Guestmaxing`,
+      html: `<p><strong>${inviterName}</strong> has invited you to join the <strong>${organizationName}</strong> workspace on Guestmaxing.</p><p>Click here to join: <a href="${inviteLink}">Accept Invitation</a></p>`,
     },
     // Idempotency key prevents double-sending if the network drops
     { idempotencyKey: `invite-${to}-${Date.now()}` }
@@ -74,12 +74,12 @@ export async function sendOtpEmail(
 ) {
   const subject =
     type === 'sign-in'
-      ? 'Your Reserva booking verification code'
+      ? 'Your Guestmaxing booking verification code'
       : type === 'email-verification'
-        ? 'Verify your Reserva email address'
+        ? 'Verify your Guestmaxing email address'
         : type === 'change-email'
-          ? 'Confirm your new Reserva email address'
-          : 'Reset your Reserva password';
+          ? 'Confirm your new Guestmaxing email address'
+          : 'Reset your Guestmaxing password';
 
   const headline =
     type === 'sign-in'

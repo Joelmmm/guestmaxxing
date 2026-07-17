@@ -69,22 +69,19 @@ export async function createReservation(data: ReservationFormValues, isInternal:
     throw new Error('PAST_RESERVATION')
   }
 
-  // Normalize guest email and phone to null if empty strings
-  if (guestData) {
-    if (!guestData.email?.trim()) guestData.email = undefined;
-    if (!guestData.phone?.trim()) guestData.phone = undefined;
-  }
+  const email = guestData?.email?.trim() || null;
+  const phone = guestData?.phone?.trim() || null;
 
   // 1. Resolve Guest
   let resolvedGuestId = guestId
 
-  if (!resolvedGuestId && guestData && (guestData.email || guestData.phone)) {
+  if (!resolvedGuestId && guestData && (email || phone)) {
     // Find or create guest
     const existingGuest = await prisma.guest.findFirst({
       where: {
         OR: [
-          guestData.email ? { email: guestData.email } : {},
-          guestData.phone ? { phone: guestData.phone } : {},
+          email ? { email } : {},
+          phone ? { phone } : {},
         ].filter((cond) => Object.keys(cond).length > 0),
       },
     })
@@ -96,8 +93,8 @@ export async function createReservation(data: ReservationFormValues, isInternal:
         data: {
           firstName: guestData.firstName,
           lastName: guestData.lastName,
-          email: guestData.email,
-          phone: guestData.phone,
+          email,
+          phone,
         },
       })
       resolvedGuestId = newGuest.id
@@ -110,8 +107,8 @@ export async function createReservation(data: ReservationFormValues, isInternal:
       data: {
         firstName: guestData.firstName,
         lastName: guestData.lastName,
-        email: guestData.email,
-        phone: guestData.phone,
+        email,
+        phone,
       },
     })
     resolvedGuestId = newGuest.id

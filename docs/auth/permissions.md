@@ -1,6 +1,6 @@
 # Role-Based Access Control (RBAC) & Permissions
 
-This document outlines the architecture for managing and asserting user roles securely across both the Server (API/Server Components) and Client (React frontend) in the Reserva application.
+This document outlines the architecture for managing and asserting user roles securely across both the Server (API/Server Components) and Client (React frontend) in the Guestmaxing application.
 
 We use a multi-tenant model mapped via the **Better Auth Organization Plugin**, assigning users `owner`, `admin`, or `member` roles for a specific restaurant (Organization).
 

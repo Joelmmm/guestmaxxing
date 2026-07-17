@@ -528,7 +528,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
             {/* ── SUCCESS ── */}
             {step === "success" && (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <CheckCircle className="size-12 text-green-500" weight="fill" />
+                <CheckCircle className="size-16 text-green-500" weight="fill" />
                 <p className="font-medium">Reservation confirmed</p>
                 {selectionSummary && (
                   <p className="text-sm text-muted-foreground">{selectionSummary}</p>

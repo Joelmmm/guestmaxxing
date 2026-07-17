@@ -108,7 +108,7 @@ export async function verifyRestaurantAccess(
 
   if (!session) {
     return {
-      isAuthorized: false,
+      isAuthorized: false as const,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
@@ -121,7 +121,7 @@ export async function verifyRestaurantAccess(
 
   if (!restaurant) {
     return {
-      isAuthorized: false,
+      isAuthorized: false as const,
       response: NextResponse.json({ error: "Restaurant not found" }, { status: 404 }),
     };
   }
@@ -136,19 +136,19 @@ export async function verifyRestaurantAccess(
 
   if (!membership) {
     return {
-      isAuthorized: false,
+      isAuthorized: false as const,
       response: NextResponse.json({ error: "Forbidden: You don't have access to this restaurant" }, { status: 403 }),
     };
   }
 
   if (!allowedRoles.includes(membership.role)) {
     return {
-      isAuthorized: false,
+      isAuthorized: false as const,
       response: NextResponse.json({ error: "Forbidden: Insufficient permissions for this action" }, { status: 403 }),
     };
   }
 
-  return { isAuthorized: true, session, organizationId: restaurant.organizationId, membership, response: null };
+  return { isAuthorized: true as const, session, organizationId: restaurant.organizationId as string, membership, response: null };
 }
 
 /**

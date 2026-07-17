@@ -18,7 +18,7 @@ export function SiteHeader() {
               <ForkKnifeIcon size={24} weight="bold" />
             </div>
             <span className="text-xl font-bold tracking-tight text-foreground sm:inline-block">
-              Reserva
+              Guestmaxing
             </span>
           </Link>
           <nav className="ml-8 hidden items-center gap-6 md:flex">

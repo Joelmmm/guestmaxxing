@@ -1,6 +1,6 @@
 # Reservation Status Management & UI Architecture
 
-This document outlines the design system principles and architectural guidelines for handling reservation statuses within the **Reserva** application. It specifically addresses the tension between **System Truth** (the database state dictated by the clock) and **Operational Truth** (what is actually happening on the restaurant floor).
+This document outlines the design system principles and architectural guidelines for handling reservation statuses within the **Guestmaxing** application. It specifically addresses the tension between **System Truth** (the database state dictated by the clock) and **Operational Truth** (what is actually happening on the restaurant floor).
 
 ## Architecture Context
 

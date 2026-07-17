@@ -73,7 +73,7 @@ export default async function ReservePage({ params }: ReservePageProps) {
         )}
 
         <footer className="text-center text-zinc-600 text-sm py-4">
-          Powered by Reserva &bull; 2026
+          Powered by Guestmaxing &bull; 2026
         </footer>
       </div>
     </div>

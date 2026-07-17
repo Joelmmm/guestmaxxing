@@ -28,14 +28,29 @@ export async function seedRestaurant(
     contactEmail: string;
     contactPhone: string;
     isActive: boolean;
+    organizationId: string;
   }> = {}
 ): Promise<Restaurant> {
+  const orgId = overrides.organizationId || "test-org-id";
+
+  await prisma.organization.upsert({
+    where: { id: orgId },
+    update: {},
+    create: {
+      id: orgId,
+      name: "Test Organization",
+      slug: "test-org",
+      createdAt: new Date(),
+    },
+  });
+
   return prisma.restaurant.create({
     data: {
       name: "Test Restaurant",
       slug: "test-restaurant",
       timezone: "America/Santiago",
       contactEmail: "test@example.com",
+      organizationId: orgId,
       ...overrides,
     },
   });
