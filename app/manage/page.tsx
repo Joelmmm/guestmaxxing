@@ -9,6 +9,7 @@ import { MapPinLineIcon, ClockIcon, CalendarIcon, UsersIcon } from "@phosphor-ic
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ACTIVE_RESERVATION_STATUSES } from "@/lib/validations/reservation";
+import { CancelReservationButton } from "./CancelReservationButton";
 
 export const metadata = {
   title: "Manage Reservations | Guestmaxxing",
@@ -123,6 +124,12 @@ function ReservationCard({ reservation, isPast = false }: { reservation: any, is
                 <UsersIcon size={18} />
                 <span className="font-medium text-foreground">Party of {reservation.partySize}</span>
             </div>
+            
+            {!isPast && (
+              <div className="pt-2 flex justify-end">
+                <CancelReservationButton reservationId={reservation.id} />
+              </div>
+            )}
         </div>
       </CardContent>
     </Card>
