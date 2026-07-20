@@ -39,7 +39,12 @@ export async function POST(req: Request) {
     const access = await getServerRestaurantAccess(validation.data.restaurantId);
     const isInternal = access.isAuthorized;
 
-    const reservation = await createReservation(validation.data, isInternal)
+    const { auth } = await import('@/lib/auth')
+    const { headers } = await import('next/headers')
+    const session = await auth.api.getSession({ headers: await headers() })
+    const userId = session?.user?.id
+
+    const reservation = await createReservation(validation.data, isInternal, userId)
 
     return NextResponse.json(reservation)
   } catch (error: any) {

@@ -29,7 +29,7 @@ export function SiteHeader() {
               Restaurants
             </Link>
             <Link
-              href="/reservations"
+              href="/manage"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               My Bookings

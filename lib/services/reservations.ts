@@ -1,15 +1,20 @@
-import { prisma } from '@/lib/prisma'
-import { checkAvailability, checkScheduleValidity } from '@/lib/availability'
-import { toRestaurantDateFilter } from '@/lib/time-utils'
-import { fromZonedTime } from 'date-fns-tz'
-import { ReservationFormValues } from '@/lib/validations/reservation'
+import { prisma } from "@/lib/prisma"
+import { checkAvailability, checkScheduleValidity } from "@/lib/availability"
+import { toRestaurantDateFilter } from "@/lib/time-utils"
+import { fromZonedTime } from "date-fns-tz"
+import { ReservationFormValues } from "@/lib/validations/reservation"
+import { upsertGuestForUser } from "@/lib/services/guests"
 
 /**
  * Service Layer for Reservations
  * Contains raw business logic that is agnostic to HTTP definitions (Routes) or Next.js specifics.
  */
 
-export async function getReservations(restaurantId: string, date?: string, status?: string) {
+export async function getReservations(
+  restaurantId: string,
+  date?: string,
+  status?: string
+) {
   const where: any = { restaurantId }
 
   if (date) {
@@ -36,11 +41,15 @@ export async function getReservations(restaurantId: string, date?: string, statu
         },
       },
     },
-    orderBy: { startTime: 'asc' },
+    orderBy: { startTime: "asc" },
   })
 }
 
-export async function createReservation(data: ReservationFormValues, isInternal: boolean = false) {
+export async function createReservation(
+  data: ReservationFormValues,
+  isInternal: boolean = false,
+  userId?: string
+) {
   const {
     restaurantId,
     guestId,
@@ -54,35 +63,45 @@ export async function createReservation(data: ReservationFormValues, isInternal:
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { timezone: true }
+    select: { timezone: true },
   })
 
   if (!restaurant) {
-    throw new Error('RESTAURANT_NOT_FOUND')
+    throw new Error("RESTAURANT_NOT_FOUND")
   }
 
   const localTimeStr = `${reservationDate} ${startTime}`
   const absoluteStartTime = fromZonedTime(localTimeStr, restaurant.timezone)
-  const absoluteEndTime = new Date(absoluteStartTime.getTime() + (durationMins || 90) * 60_000)
+  const absoluteEndTime = new Date(
+    absoluteStartTime.getTime() + (durationMins || 90) * 60_000
+  )
 
   if (absoluteStartTime < new Date()) {
-    throw new Error('PAST_RESERVATION')
+    throw new Error("PAST_RESERVATION")
   }
 
-  const email = guestData?.email?.trim() || null;
-  const phone = guestData?.phone?.trim() || null;
+  const email = guestData?.email?.trim() || null
+  const phone = guestData?.phone?.trim() || null
 
   // 1. Resolve Guest
   let resolvedGuestId = guestId
 
-  if (!resolvedGuestId && guestData && (email || phone)) {
+  if (!resolvedGuestId && userId && guestData && email) {
+    const res = await upsertGuestForUser({
+      userId,
+      email,
+      firstName: guestData.firstName,
+      lastName: guestData.lastName,
+      phone: phone || undefined,
+    })
+    resolvedGuestId = res.guestId
+  } else if (!resolvedGuestId && guestData && (email || phone)) {
     // Find or create guest
     const existingGuest = await prisma.guest.findFirst({
       where: {
-        OR: [
-          email ? { email } : {},
-          phone ? { phone } : {},
-        ].filter((cond) => Object.keys(cond).length > 0),
+        OR: [email ? { email } : {}, phone ? { phone } : {}].filter(
+          (cond) => Object.keys(cond).length > 0
+        ),
       },
     })
 
@@ -115,133 +134,169 @@ export async function createReservation(data: ReservationFormValues, isInternal:
   }
 
   if (!resolvedGuestId) {
-    throw new Error('GUEST_INFO_REQUIRED')
+    throw new Error("GUEST_INFO_REQUIRED")
   }
 
   // 2 & 3. Transactional validation and creation
-  let reservation;
-  let retries = 3;
+  let reservation
+  let retries = 3
   while (retries > 0) {
     try {
-      reservation = await prisma.$transaction(async (tx) => {
-        let finalTableIds: string[] = []
+      reservation = await prisma.$transaction(
+        async (tx) => {
+          let finalTableIds: string[] = []
 
-        // ── Schedule gate: applies to BOTH manual and automatic paths ──────────
-        // Without this, selecting a specific table bypasses override/hours checks.
-        const scheduleCheck = await checkScheduleValidity({
-          restaurantId,
-          date: reservationDate,
-          time: startTime,
-          durationMins: durationMins || 90,
-        }, tx)
+          // ── Schedule gate: applies to BOTH manual and automatic paths ──────────
+          // Without this, selecting a specific table bypasses override/hours checks.
+          const scheduleCheck = await checkScheduleValidity(
+            {
+              restaurantId,
+              date: reservationDate,
+              time: startTime,
+              durationMins: durationMins || 90,
+            },
+            tx
+          )
 
-        if (!scheduleCheck.valid) {
-          if (scheduleCheck.reason === 'RESTAURANT_CLOSED') throw new Error('RESTAURANT_CLOSED')
-          if (scheduleCheck.reason === 'NO_OPERATING_HOURS') throw new Error('NO_TABLES_AVAILABLE')
-          throw new Error('OUTSIDE_OPERATING_HOURS')
-        }
+          if (!scheduleCheck.valid) {
+            if (scheduleCheck.reason === "RESTAURANT_CLOSED")
+              throw new Error("RESTAURANT_CLOSED")
+            if (scheduleCheck.reason === "NO_OPERATING_HOURS")
+              throw new Error("NO_TABLES_AVAILABLE")
+            throw new Error("OUTSIDE_OPERATING_HOURS")
+          }
 
-        // ────────────────────────────────────────────────────────────────────────
+          // ────────────────────────────────────────────────────────────────────────
 
-        if (tableIds && tableIds.length > 0) {
-          // Specific table assignment (Manual Override)
-          const overlapping = await tx.reservationOnTable.findFirst({
-            where: {
-              tableId: { in: tableIds },
-              reservation: {
-                status: { in: ['PENDING', 'CONFIRMED', 'WAITLISTED', 'ARRIVED', 'PARTIALLY_ARRIVED', 'SEATED'] },
-                OR: [
-                  {
-                    startTime: { lt: absoluteEndTime },
-                    endTime: { gt: absoluteStartTime },
+          if (tableIds && tableIds.length > 0) {
+            // Specific table assignment (Manual Override)
+            const overlapping = await tx.reservationOnTable.findFirst({
+              where: {
+                tableId: { in: tableIds },
+                reservation: {
+                  status: {
+                    in: [
+                      "PENDING",
+                      "CONFIRMED",
+                      "WAITLISTED",
+                      "ARRIVED",
+                      "PARTIALLY_ARRIVED",
+                      "SEATED",
+                    ],
                   },
-                ],
+                  OR: [
+                    {
+                      startTime: { lt: absoluteEndTime },
+                      endTime: { gt: absoluteStartTime },
+                    },
+                  ],
+                },
+              },
+            })
+
+            if (overlapping) {
+              throw new Error("SPECIFIC_TABLES_BOOKED")
+            }
+            finalTableIds = tableIds
+          } else {
+            // Dynamic Table Assignment (Standard Booking)
+            const requestDate = reservationDate
+            const requestTime = startTime
+
+            const availability = await checkAvailability(
+              {
+                restaurantId,
+                date: requestDate,
+                time: requestTime,
+                partySize,
+                absoluteStartTime,
+                isInternal,
+              },
+              tx
+            )
+
+            if (!availability.available || !availability.table) {
+              if (
+                availability.reason ===
+                "Restaurant is not currently accepting online reservations."
+              ) {
+                throw new Error("NOT_ACCEPTING_RESERVATIONS")
+              }
+              throw new Error("NO_TABLES_AVAILABLE")
+            }
+            finalTableIds = [availability.table.id]
+          }
+
+          // 3. Create Reservation
+          return await tx.reservation.create({
+            data: {
+              restaurantId,
+              guestId: resolvedGuestId,
+              partySize,
+              reservationDate: toRestaurantDateFilter(reservationDate),
+              startTime: absoluteStartTime,
+              endTime: absoluteEndTime,
+              status: "CONFIRMED", // default for now
+              tables: {
+                create: finalTableIds.map((tid: string) => ({
+                  table: { connect: { id: tid } },
+                })),
+              },
+            },
+            include: {
+              restaurant: { select: { timezone: true } },
+              guest: true,
+              tables: {
+                include: {
+                  table: { select: { name: true } },
+                },
               },
             },
           })
+        },
+        { isolationLevel: "Serializable" }
+      )
 
-          if (overlapping) {
-            throw new Error('SPECIFIC_TABLES_BOOKED')
-          }
-          finalTableIds = tableIds
-        } else {
-          // Dynamic Table Assignment (Standard Booking)
-          const requestDate = reservationDate
-          const requestTime = startTime
-
-          const availability = await checkAvailability({
-            restaurantId,
-            date: requestDate,
-            time: requestTime,
-            partySize,
-            absoluteStartTime,
-            isInternal,
-          }, tx)
-
-          if (!availability.available || !availability.table) {
-            if (availability.reason === "Restaurant is not currently accepting online reservations.") {
-              throw new Error('NOT_ACCEPTING_RESERVATIONS')
-            }
-            throw new Error('NO_TABLES_AVAILABLE')
-          }
-          finalTableIds = [availability.table.id]
-        }
-
-        // 3. Create Reservation
-        return await tx.reservation.create({
-          data: {
-            restaurantId,
-            guestId: resolvedGuestId,
-            partySize,
-            reservationDate: toRestaurantDateFilter(reservationDate),
-            startTime: absoluteStartTime,
-            endTime: absoluteEndTime,
-            status: 'CONFIRMED', // default for now
-            tables: {
-              create: finalTableIds.map((tid: string) => ({
-                table: { connect: { id: tid } },
-              })),
-            },
-          },
-          include: {
-            restaurant: { select: { timezone: true } },
-            guest: true,
-            tables: {
-              include: {
-                table: { select: { name: true } },
-              },
-            },
-          }
-        })
-      }, { isolationLevel: 'Serializable' })
-
-      break; // transaction success, exit retry loop
+      break // transaction success, exit retry loop
     } catch (error: any) {
-      if (error instanceof Error && (
-        error.message === 'SPECIFIC_TABLES_BOOKED' ||
-        error.message === 'NO_TABLES_AVAILABLE' ||
-        error.message === 'RESTAURANT_CLOSED' ||
-        error.message === 'OUTSIDE_OPERATING_HOURS' ||
-        error.message === 'NOT_ACCEPTING_RESERVATIONS'
-      )) {
-        throw error;
+      if (
+        error instanceof Error &&
+        (error.message === "SPECIFIC_TABLES_BOOKED" ||
+          error.message === "NO_TABLES_AVAILABLE" ||
+          error.message === "RESTAURANT_CLOSED" ||
+          error.message === "OUTSIDE_OPERATING_HOURS" ||
+          error.message === "NOT_ACCEPTING_RESERVATIONS")
+      ) {
+        throw error
       }
 
       const isSerializationError =
-        (error && typeof error === 'object' && 'code' in error && error.code === 'P2034') ||
-        (error && typeof error === 'object' && ((error as any).cause?.kind === 'TransactionWriteConflict' || (error as any).cause?.originalCode === '40001')) ||
-        (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string' && (error as any).message.toLowerCase().includes('could not serialize access'));
+        (error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "P2034") ||
+        (error &&
+          typeof error === "object" &&
+          ((error as any).cause?.kind === "TransactionWriteConflict" ||
+            (error as any).cause?.originalCode === "40001")) ||
+        (error &&
+          typeof error === "object" &&
+          "message" in error &&
+          typeof (error as any).message === "string" &&
+          (error as any).message
+            .toLowerCase()
+            .includes("could not serialize access"))
 
       if (isSerializationError) {
-        retries--;
+        retries--
         if (retries === 0) {
-          throw new Error('CONCURRENT_BOOKING_FAILED');
+          throw new Error("CONCURRENT_BOOKING_FAILED")
         }
-        await new Promise(res => setTimeout(res, 20 + Math.random() * 30));
-        continue;
+        await new Promise((res) => setTimeout(res, 20 + Math.random() * 30))
+        continue
       }
 
-      throw error;
+      throw error
     }
   }
 
@@ -249,7 +304,15 @@ export async function createReservation(data: ReservationFormValues, isInternal:
 }
 
 export async function updateReservation(reservationId: string, data: any) {
-  const { status, partySize, startTime, endTime, tableIds, internalNotes, specialRequest } = data
+  const {
+    status,
+    partySize,
+    startTime,
+    endTime,
+    tableIds,
+    internalNotes,
+    specialRequest,
+  } = data
 
   const updateData: any = {
     status,
@@ -281,5 +344,33 @@ export async function updateReservation(reservationId: string, data: any) {
 export async function deleteReservation(reservationId: string) {
   return await prisma.reservation.delete({
     where: { id: reservationId },
+  })
+}
+
+export async function getGuestReservationsByUserId(userId: string) {
+  const guest = await prisma.guest.findUnique({
+    where: { userId },
+  })
+
+  console.log("Found guest for userId:", userId, "Guest:", guest)
+  if (!guest) {
+    return []
+  }
+
+  return await prisma.reservation.findMany({
+    where: { guestId: guest.id },
+    include: {
+      restaurant: {
+        select: { name: true, timezone: true },
+      },
+      tables: {
+        include: {
+          table: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+    orderBy: { startTime: "asc" },
   })
 }

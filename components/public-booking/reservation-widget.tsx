@@ -1,14 +1,27 @@
 "use client"
 
 import { useMemo, useState, useEffect, useTransition } from "react"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isBefore, startOfDay } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
-import { getRestaurantTodayForCalendar, parseDateForCalendar } from "@/lib/time-utils"
-import { CalendarBlank, Clock, CheckCircle, Spinner, ShieldCheck } from "@phosphor-icons/react"
+import {
+  getRestaurantTodayForCalendar,
+  parseDateForCalendar,
+} from "@/lib/time-utils"
+import {
+  CalendarBlank,
+  Clock,
+  CheckCircle,
+  Spinner,
+  ShieldCheck,
+} from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { reservationSchema, type ReservationFormValues } from "@/lib/validations/reservation"
+import {
+  reservationSchema,
+  type ReservationFormValues,
+} from "@/lib/validations/reservation"
 import type { Prisma } from "@/generated/client"
 import { cn } from "@/lib/utils"
 import { getEffectiveScheduleSlots } from "@/lib/schedule-utils"
@@ -31,7 +44,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Select,
@@ -93,7 +110,11 @@ function isClosedDay(date: Date, restaurant: RestaurantWithSchedule): boolean {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSchedule }) {
+export function ReservationWidget({
+  restaurant,
+}: {
+  restaurant: RestaurantWithSchedule
+}) {
   const [step, setStep] = useState<Step>("setup")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -177,7 +198,11 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
   }
 
   async function handleNext() {
-    const valid = await form.trigger(["reservationDate", "partySize", "startTime"])
+    const valid = await form.trigger([
+      "reservationDate",
+      "partySize",
+      "startTime",
+    ])
     if (valid) setStep("guest-info")
   }
 
@@ -185,7 +210,11 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
   // If the guest has a session → submit directly.
   // If not → go to OTP verification first.
   async function handleGuestInfoNext() {
-    const valid = await form.trigger(["guestData.firstName", "guestData.lastName", "guestData.email"])
+    const valid = await form.trigger([
+      "guestData.firstName",
+      "guestData.lastName",
+      "guestData.email",
+    ])
     if (!valid) return
 
     const email = form.getValues("guestData.email")
@@ -245,7 +274,8 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
       if (res.status === 409) {
         form.setError("tableIds", {
           type: "manual",
-          message: "No tables available for this time. Please choose a different slot.",
+          message:
+            "No tables available for this time. Please choose a different slot.",
         })
         setStep("setup")
         return
@@ -298,11 +328,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
           <Separator />
 
           <CardContent className="pt-6">
-
             {/* ── STEP 1: Setup ── */}
             {step === "setup" && (
               <div className="flex flex-col gap-6">
-
                 {/* Date picker */}
                 <FormField
                   control={form.control}
@@ -322,7 +350,11 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                             >
                               <CalendarBlank data-icon="inline-start" />
                               {field.value
-                                ? formatInTimeZone(parseDateForCalendar(field.value), "UTC", "PPP")
+                                ? formatInTimeZone(
+                                    parseDateForCalendar(field.value),
+                                    "UTC",
+                                    "PPP"
+                                  )
                                 : "Pick a date"}
                             </Button>
                           </FormControl>
@@ -330,17 +362,24 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={field.value ? parseDateForCalendar(field.value) : undefined}
+                            selected={
+                              field.value
+                                ? parseDateForCalendar(field.value)
+                                : undefined
+                            }
                             onSelect={(date) => {
                               if (date) {
-                                field.onChange(formatInTimeZone(date, "UTC", "yyyy-MM-dd"))
+                                field.onChange(
+                                  formatInTimeZone(date, "UTC", "yyyy-MM-dd")
+                                )
                                 form.setValue("startTime", "")
                               } else {
                                 field.onChange("")
                               }
                             }}
                             disabled={(date) =>
-                              isBefore(startOfDay(date), today) || isClosedDay(date, restaurant)
+                              isBefore(startOfDay(date), today) ||
+                              isClosedDay(date, restaurant)
                             }
                             initialFocus
                           />
@@ -368,11 +407,13 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                            <SelectItem key={n} value={n.toString()}>
-                              {n} {n === 1 ? "person" : "people"}
-                            </SelectItem>
-                          ))}
+                          {Array.from({ length: 10 }, (_, i) => i + 1).map(
+                            (n) => (
+                              <SelectItem key={n} value={n.toString()}>
+                                {n} {n === 1 ? "person" : "people"}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -392,7 +433,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                           Available times
                         </FormLabel>
                         {isLoadingSlots ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                          <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                             <Spinner className="animate-spin" />
                             Checking table availability...
                           </div>
@@ -406,7 +447,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                               <Button
                                 key={slot}
                                 type="button"
-                                variant={selectedSlot === slot ? "default" : "outline"}
+                                variant={
+                                  selectedSlot === slot ? "default" : "outline"
+                                }
                                 size="sm"
                                 onClick={() => handleSlotSelect(slot)}
                               >
@@ -477,7 +520,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                       <FormLabel>
                         Email{" "}
                         {hasSession ? null : (
-                          <span className="text-muted-foreground font-normal">(used to verify your booking)</span>
+                          <span className="font-normal text-muted-foreground">
+                            (used to verify your booking)
+                          </span>
                         )}
                       </FormLabel>
                       <FormControl>
@@ -487,7 +532,9 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                           {...field}
                           // Prevent editing if email comes from session
                           readOnly={hasSession}
-                          className={hasSession ? "bg-muted cursor-default" : undefined}
+                          className={
+                            hasSession ? "cursor-default bg-muted" : undefined
+                          }
                         />
                       </FormControl>
                       <FormMessage />
@@ -502,10 +549,16 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                     <FormItem>
                       <FormLabel>
                         Phone{" "}
-                        <span className="text-muted-foreground font-normal">(optional)</span>
+                        <span className="font-normal text-muted-foreground">
+                          (optional)
+                        </span>
                       </FormLabel>
                       <FormControl>
-                        <Input type="tel" placeholder="+1 555 000 0000" {...field} />
+                        <Input
+                          type="tel"
+                          placeholder="+1 555 000 0000"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -531,11 +584,18 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
                 <CheckCircle className="size-16 text-green-500" weight="fill" />
                 <p className="font-medium">Reservation confirmed</p>
                 {selectionSummary && (
-                  <p className="text-sm text-muted-foreground">{selectionSummary}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectionSummary}
+                  </p>
                 )}
                 <p className="text-sm text-muted-foreground">
                   The restaurant will reach out if anything changes.
                 </p>
+                <Button asChild>
+                  <Link type="button" href="/manage" className="">
+                    Manage your reservations
+                  </Link>
+                </Button>
               </div>
             )}
           </CardContent>
@@ -567,7 +627,7 @@ export function ReservationWidget({ restaurant }: { restaurant: RestaurantWithSc
               >
                 {isSubmitting ? (
                   <>
-                    <Spinner className="animate-spin mr-2" />
+                    <Spinner className="mr-2 animate-spin" />
                     Confirming…
                   </>
                 ) : hasSession ? (

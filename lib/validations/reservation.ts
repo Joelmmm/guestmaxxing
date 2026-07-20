@@ -22,3 +22,12 @@ export const reservationSchema = z.object({
 })
 
 export type ReservationFormValues = z.infer<typeof reservationSchema>
+
+export const ACTIVE_RESERVATION_STATUSES = [
+  'PENDING', 'CONFIRMED', 'WAITLISTED', 'ARRIVED', 
+  'PARTIALLY_ARRIVED', 'SEATED', 'LATE'
+] as const;
+
+export const INACTIVE_RESERVATION_STATUSES = [
+  'COMPLETED', 'CANCELLED', 'NO_SHOW'
+] as const;
