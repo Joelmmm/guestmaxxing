@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/lib/auth-client";
+import { signOut, useListOrganizations } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserIcon, SignOutIcon, CaretDownIcon } from "@phosphor-icons/react";
+import { UserIcon, SignOutIcon, CaretDownIcon, SquaresFourIcon } from "@phosphor-icons/react";
 
 interface UserNavProps {
   user: {
@@ -25,7 +25,7 @@ interface UserNavProps {
 
 export function UserNav({ user }: UserNavProps) {
   const router = useRouter();
-
+  const { data: organizations } = useListOrganizations();
   const handleSignOut = async () => {
     await signOut({
       fetchOptions: {
@@ -68,6 +68,14 @@ export function UserNav({ user }: UserNavProps) {
             Profile
           </Link>
         </DropdownMenuItem>
+        {organizations && organizations.length > 0 && (
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard" className="flex items-center gap-2 cursor-pointer">
+              <SquaresFourIcon size={18} />
+              Dashboard
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer"
