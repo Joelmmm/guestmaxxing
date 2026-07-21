@@ -475,11 +475,32 @@ export function ReservationWidget({
             {step === "guest-info" && (
               <div className="flex flex-col gap-4">
                 {/* Session badge for returning guests */}
-                {hasSession && (
+                {hasSession ? (
                   <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
                     <ShieldCheck className="size-4 shrink-0 text-green-500" />
                     <span>Verified — no code needed this time.</span>
                   </div>
+                ) : (
+                  <>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={() => authClient.signIn.social({ provider: "google", callbackURL: `/r/${restaurant.slug}` })}
+                    >
+                      Continue with Google
+                    </Button>
+                    <div className="relative w-full">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or continue as guest
+                        </span>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
@@ -614,7 +635,11 @@ export function ReservationWidget({
             )}
 
             {step === "setup" && (
-              <Button type="button" onClick={handleNext}>
+              <Button
+                type="button"
+                onClick={handleNext}
+                disabled={!reservationDate || isLoadingSlots || !selectedSlot}
+              >
                 Next
               </Button>
             )}

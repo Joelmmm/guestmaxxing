@@ -132,3 +132,53 @@ export async function sendOtpEmail(
 
   return { success: true, data };
 }
+
+/**
+ * Sends a confirmation email to the guest after a successful reservation.
+ */
+export async function sendReservationConfirmationEmail(
+  to: string,
+  guestName: string,
+  restaurantName: string,
+  reservationDate: string, // formatted date
+  startTime: string, // formatted time
+  partySize: number,
+  reservationId: string
+) {
+  const manageLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/manage`;
+  
+  const { data, error } = await resend.emails.send(
+    {
+      from: DEFAULT_FROM,
+      to: [to],
+      subject: `Reservation Confirmed at ${restaurantName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+          <h2 style="margin: 0 0 8px; font-size: 20px; color: #111;">Your reservation is confirmed</h2>
+          <p style="margin: 0 0 24px; color: #555; font-size: 15px;">Hi ${guestName}, we look forward to seeing you at ${restaurantName}!</p>
+          
+          <div style="background: #f4f4f5; border-radius: 8px; padding: 20px 24px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px; font-weight: bold; color: #111;">Reservation Details</p>
+            <p style="margin: 0 0 4px; color: #555;"><strong>Date:</strong> ${reservationDate}</p>
+            <p style="margin: 0 0 4px; color: #555;"><strong>Time:</strong> ${startTime}</p>
+            <p style="margin: 0; color: #555;"><strong>Party Size:</strong> ${partySize} ${partySize === 1 ? 'person' : 'people'}</p>
+          </div>
+          
+          <a href="${manageLink}" style="display: inline-block; background-color: #111; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 500; text-align: center;">Manage your reservation</a>
+          
+          <p style="margin: 24px 0 0; color: #999; font-size: 13px;">
+            If you need to make changes or cancel, please use the link above.
+          </p>
+        </div>
+      `,
+    },
+    { idempotencyKey: `reservation-confirmed-${reservationId}` }
+  );
+
+  if (error) {
+    console.error('[sendReservationConfirmationEmail] Failed to send email:', error);
+    return { success: false, error };
+  }
+
+  return { success: true, data };
+}

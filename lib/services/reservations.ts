@@ -4,6 +4,7 @@ import { toRestaurantDateFilter } from "@/lib/time-utils"
 import { fromZonedTime } from "date-fns-tz"
 import { ReservationFormValues } from "@/lib/validations/reservation"
 import { upsertGuestForUser } from "@/lib/services/guests"
+import { sendReservationConfirmationEmail } from "@/lib/services/email"
 
 /**
  * Service Layer for Reservations
@@ -63,7 +64,7 @@ export async function createReservation(
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { timezone: true },
+    select: { timezone: true, name: true },
   })
 
   if (!restaurant) {
@@ -298,6 +299,31 @@ export async function createReservation(
 
       throw error
     }
+  }
+
+  if (reservation?.guest?.email) {
+    const formattedDate = new Intl.DateTimeFormat("en-US", {
+      timeZone: restaurant.timezone,
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    }).format(reservation.startTime)
+    
+    const formattedTime = new Intl.DateTimeFormat("en-US", {
+      timeZone: restaurant.timezone,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(reservation.startTime)
+
+    sendReservationConfirmationEmail(
+      reservation.guest.email,
+      reservation.guest.firstName,
+      restaurant.name,
+      formattedDate,
+      formattedTime,
+      reservation.partySize,
+      reservation.id
+    ).catch(console.error)
   }
 
   return reservation

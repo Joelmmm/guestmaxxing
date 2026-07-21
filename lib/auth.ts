@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
-import { organization } from "better-auth/plugins";
+import { organization } from "better-auth/plugins/organization";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { sendTeamInvitation, sendOtpEmail } from "./services/email";
 
