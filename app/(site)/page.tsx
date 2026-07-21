@@ -1,4 +1,3 @@
-import { SiteHeader } from "@/components/site-header";
 import { Hero } from "@/components/hero";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -13,12 +12,10 @@ import Link from "next/link";
 
 export default function Page() {
    return (
-      <div className="flex min-h-screen flex-col bg-background selection:bg-primary/20">
-         <SiteHeader />
-         <main className="flex-1">
-            <Hero />
+      <>
+         <Hero />
 
-            {/* Features Section */}
+         {/* Features Section */}
             <section className="container mx-auto px-6 py-20">
                <div className="text-center max-w-2xl mx-auto mb-16">
                   <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-4">Why Guestmaxxing?</h2>
@@ -85,7 +82,6 @@ export default function Page() {
                   </div>
                </div>
             </section>
-         </main>
 
          {/* Footer */}
          <footer className="border-t py-12 bg-background">
@@ -101,7 +97,7 @@ export default function Page() {
                </div>
             </div>
          </footer>
-      </div>
+      </>
    );
 }
 

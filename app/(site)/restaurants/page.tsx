@@ -1,4 +1,3 @@
-import { SiteHeader } from "@/components/site-header";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +15,7 @@ export default async function RestaurantsPage() {
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-background selection:bg-primary/20">
-      <SiteHeader />
-      <main className="flex-1">
+    <>
         <section className="container mx-auto px-6 py-12 md:py-20">
           <div className="max-w-2xl mb-12">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl mb-4">
@@ -70,16 +67,6 @@ export default async function RestaurantsPage() {
             </div>
           )}
         </section>
-      </main>
-
-      <footer className="border-t py-12 bg-background mt-auto">
-        <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight text-foreground">Guestmaxxing.</span>
-            <span className="text-sm text-muted-foreground">© 2026 All rights reserved.</span>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

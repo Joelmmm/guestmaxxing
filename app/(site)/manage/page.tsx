@@ -26,15 +26,13 @@ export default async function ManagePage() {
   }
 
   const reservations = await getGuestReservationsByUserId(session.user.id);
-  console.log("User session:", session);
-  console.log("Reservations fetched:", reservations);
   const upcoming = reservations.filter(r => (ACTIVE_RESERVATION_STATUSES as readonly string[]).includes(r.status));
   const past = reservations.filter(r => !(ACTIVE_RESERVATION_STATUSES as readonly string[]).includes(r.status));
 
   return (
-    <div className="min-h-screen bg-muted/20 py-12">
-      <div className="container mx-auto px-6 max-w-4xl">
-        <div className="flex justify-between items-end mb-8">
+      <div className="py-12 bg-muted/20">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <div className="flex justify-between items-end mb-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">Your Reservations</h1>
                 <p className="text-muted-foreground mt-2">Manage your upcoming dining experiences.</p>

@@ -352,7 +352,6 @@ export async function getGuestReservationsByUserId(userId: string) {
     where: { userId },
   })
 
-  console.log("Found guest for userId:", userId, "Guest:", guest)
   if (!guest) {
     return []
   }
