@@ -314,7 +314,6 @@ export function ReservationDialog({
                           disabled={(date) =>
                             date < parseDateForCalendar(getRestaurantTodayStr(restaurantTimezone))
                           }
-                          initialFocus
                         />
                       </PopoverContent>
                     </Popover>

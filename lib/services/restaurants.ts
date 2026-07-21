@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import type { RestaurantFormValues } from "@/lib/validations/restaurant"
+import { slugify } from "@/lib/utils"
 
 /**
  * Creates a new restaurant and automatically provisions a default "Main" Dining Area
@@ -8,16 +9,28 @@ import type { RestaurantFormValues } from "@/lib/validations/restaurant"
  */
 export async function createRestaurant(data: {
   name: string
-  slug: string
   timezone: string
   contactEmail: string
   contactPhone?: string
   organizationId: string
 }) {
+  let slug = slugify(data.name)
+
+  // Uniqueness check: if slug exists, append numeric suffix
+  let count = 0
+  let existingSlug = await prisma.restaurant.findUnique({ where: { slug } })
+
+  while (existingSlug) {
+    count++
+    const newSlug = `${slug}-${count}`
+    existingSlug = await prisma.restaurant.findUnique({ where: { slug: newSlug } })
+    if (!existingSlug) slug = newSlug
+  }
+
   const restaurant = await prisma.restaurant.create({
     data: {
       name: data.name,
-      slug: data.slug,
+      slug,
       timezone: data.timezone,
       contactEmail: data.contactEmail,
       contactPhone: data.contactPhone,

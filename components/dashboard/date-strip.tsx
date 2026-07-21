@@ -77,7 +77,6 @@ export function DateStrip({ currentDateStr, restaurantTimezone }: DateStripProps
             selected={displayDate}
             defaultMonth={displayDate}
             onSelect={handleDateSelect}
-            initialFocus
           />
         </PopoverContent>
       </Popover>

@@ -381,7 +381,6 @@ export function ReservationWidget({
                               isBefore(startOfDay(date), today) ||
                               isClosedDay(date, restaurant)
                             }
-                            initialFocus
                           />
                         </PopoverContent>
                       </Popover>
