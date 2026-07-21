@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY || 're_mock_key');
 
 // Define your default From address (use the sandbox for testing)
-const DEFAULT_FROM = 'Guestmaxxing <onboarding@resend.dev>';
+const DEFAULT_FROM = 'Guestmaxxing <onboarding@gasti.tech>';
 
 /**
  * Sends a Team Invitation email via Better Auth's workflow
