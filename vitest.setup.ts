@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
-process.env.NODE_ENV = "test";
+// Vitest automatically sets NODE_ENV to "test"
 
 // Load .env.test and let it override any inherited env vars.
 // `override: true` ensures test DB credentials win over production ones.
