@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPinIcon, ClockIcon } from "@phosphor-icons/react/dist/ssr";
 
@@ -11,8 +12,11 @@ export const metadata = {
 export default async function RestaurantsPage() {
   const restaurants = await prisma.restaurant.findMany({
     where: { isActive: true },
-    orderBy: { createdAt: 'desc' }
-  });
+    orderBy: { createdAt: 'desc' },
+    include: {
+      images: true
+      }
+    });
 
   return (
     <>
@@ -35,13 +39,28 @@ export default async function RestaurantsPage() {
               {restaurants.map((restaurant) => (
                 <Link key={restaurant.id} href={`/reserve/${restaurant.slug}`} className="group outline-none">
                   <Card className="h-full rounded-3xl border-muted/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 overflow-hidden group-focus-visible:ring-2 group-focus-visible:ring-primary">
-                    <div className="aspect-video bg-muted relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-accent/10 group-hover:scale-105 transition-transform duration-500" />
-                      {/* You can add an image here if the database schema evolves to include one */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-4xl font-bold text-muted-foreground/30 uppercase tracking-widest">{restaurant.name.charAt(0)}</span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const coverImage = restaurant.images.find(img => img.isCover) || restaurant.images[0];
+                      return (
+                        <div className="aspect-video bg-muted relative overflow-hidden">
+                          {coverImage ? (
+                            <Image
+                              src={`/api/restaurants/${restaurant.id}/images/${coverImage.id}`}
+                              alt={coverImage.altText || restaurant.name}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <>
+                              <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-accent/10 group-hover:scale-105 transition-transform duration-500" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-4xl font-bold text-muted-foreground/30 uppercase tracking-widest">{restaurant.name.charAt(0)}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <CardHeader>
                       <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">
                         {restaurant.name}
