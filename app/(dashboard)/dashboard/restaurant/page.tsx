@@ -4,6 +4,7 @@ import { Storefront, CalendarSlash } from "@phosphor-icons/react/dist/ssr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { getOrgRestaurant, getServerRestaurantAccess } from "@/lib/api-utils"
+import { RestaurantImagesSection } from "@/components/dashboard/restaurant-images-section"
 
 export default async function RestaurantPage() {
   const result = await getOrgRestaurant({
@@ -50,6 +51,14 @@ export default async function RestaurantPage() {
       <div className="flex flex-col gap-8">
         <div className="md:col-span-2 lg:col-span-3 space-y-8">
           <SettingsForm restaurant={restaurant} className="w-full" canManage={canManage} />
+
+          <Separator />
+
+          <RestaurantImagesSection 
+            restaurantId={restaurant.id} 
+            initialImages={restaurant.images} 
+            canManage={canManage} 
+          />
 
           <Separator />
 

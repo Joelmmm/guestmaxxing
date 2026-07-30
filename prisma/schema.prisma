@@ -32,11 +32,29 @@ model Restaurant {
   reservations      Reservation[]
   operatingHours    OperatingHours[]
   scheduleOverrides ScheduleOverride[]
+  images            RestaurantImage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([organizationId])
+}
+
+model RestaurantImage {
+  id           String     @id @default(uuid())
+  restaurantId String
+  data         Bytes      // The actual image binary data
+  mimeType     String     // e.g. "image/jpeg", "image/png"
+  altText      String?
+  isCover      Boolean    @default(false)
+
+  // Relationships
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([restaurantId])
 }
 
 // E.g., "Main Dining Room", "Patio", "Bar"

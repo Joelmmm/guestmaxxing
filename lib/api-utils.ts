@@ -13,7 +13,18 @@ import type { Prisma } from "@/generated/client"
  * Returns `null` when the user has no session, no active org, or the org
  * has no restaurant yet.
  */
-export async function getOrgRestaurant<T extends Prisma.RestaurantInclude>(
+type DefaultRestaurantInclude = {
+  images: {
+    select: {
+      id: true;
+      mimeType: true;
+      altText: true;
+      isCover: true;
+    };
+  };
+};
+
+export async function getOrgRestaurant<T extends Prisma.RestaurantInclude = {}>(
   include?: T
 ) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -30,14 +41,28 @@ export async function getOrgRestaurant<T extends Prisma.RestaurantInclude>(
     organizationId = fallbackMembership.organizationId
   }
 
+  const defaultInclude = {
+    images: {
+      select: {
+        id: true,
+        mimeType: true,
+        altText: true,
+        isCover: true,
+      },
+    },
+  }
+
   const restaurant = await prisma.restaurant.findFirst({
     where: { organizationId },
-    ...(include ? { include } : {}),
+    include: include ? { ...include, ...defaultInclude } : defaultInclude,
   })
 
   if (!restaurant) return null
 
-  return { restaurant: restaurant as Prisma.RestaurantGetPayload<{ include: T }>, organizationId }
+  return { 
+    restaurant: restaurant as Prisma.RestaurantGetPayload<{ include: T & DefaultRestaurantInclude }>, 
+    organizationId 
+  }
 }
 
 /**
