@@ -52,7 +52,7 @@ export default async function RestaurantsPage() {
                             />
                           ) : (
                             <>
-                              <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-accent/10 group-hover:scale-105 transition-transform duration-500" />
+                              <div className="absolute inset-0 bg-linear-to-tr from-primary/10 to-accent/10 group-hover:scale-105 transition-transform duration-500" />
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <span className="text-4xl font-bold text-muted-foreground/30 uppercase tracking-widest">{restaurant.name.charAt(0)}</span>
                               </div>
