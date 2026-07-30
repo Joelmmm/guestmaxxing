@@ -1,59 +1,169 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { useSession } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { UserNav } from "@/components/user-nav";
-import { ForkKnifeIcon } from "@phosphor-icons/react";
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useSession, signOut } from "@/lib/auth-client"
+import { Button } from "@/components/ui/button"
+import { UserNav } from "@/components/user-nav"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  navigationMenuTriggerStyle,
+  NavigationMenuTrigger,
+  NavigationMenuContent,
+} from "@/components/ui/navigation-menu"
+import { List, ArrowRightIcon } from "@phosphor-icons/react"
 
 export function SiteHeader() {
-  const { data: session, isPending } = useSession();
+  const router = useRouter()
+  const { data: session, isPending } = useSession()
+
+  const handleSignOut = async () => {
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push("/")
+        },
+      },
+    })
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
         <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-85">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
-              <ForkKnifeIcon size={24} weight="bold" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-foreground sm:inline-block">
-              Guestmaxxing
+          <Link href="/" className="flex items-center justify-center">
+            <span className="flex size-9 items-center justify-center bg-primary text-xl font-bold text-primary-foreground shadow-sm">
+              G
             </span>
           </Link>
-          <nav className="ml-8 hidden items-center gap-6 md:flex">
-            <Link
-              href="/restaurants"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Restaurants
-            </Link>
-            <Link
-              href="/manage"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              My Bookings
-            </Link>
-          </nav>
+          <NavigationMenu viewport={false} className="ml-6 hidden md:flex">
+            <NavigationMenuList className="gap-1">
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={navigationMenuTriggerStyle()}
+                >
+                  <Link href="/restaurants">Restaurants</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={navigationMenuTriggerStyle()}
+                >
+                  <Link href="/manage">My Bookings</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* Desktop Auth Controls */}
+        <div className="hidden items-center gap-4 md:flex">
           {isPending ? (
-            <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
+            <Skeleton className="h-9 w-24" />
           ) : session?.user ? (
             <UserNav user={session.user} />
           ) : (
             <div className="flex items-center gap-2">
-              <Button variant="ghost" asChild className="hidden sm:inline-flex">
+              <Button variant="ghost" asChild>
                 <Link href="/sign-in">Log in</Link>
               </Button>
-              <Button asChild className="rounded-full px-5 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-100">
+              <Button
+                asChild
+                className="px-5 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-100"
+              >
                 <Link href="/sign-up">Get Started</Link>
               </Button>
             </div>
           )}
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        <div className="flex items-center gap-2 md:hidden">
+          {isPending ? (
+            <Skeleton className="size-9" />
+          ) : (
+            <Drawer direction="top">
+              <DrawerTrigger>
+                <List className="size-5" />
+              </DrawerTrigger>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle className="text-2xl font-semibold font-monserrat">Guestmaxxing</DrawerTitle>
+                </DrawerHeader>
+
+                <div className="flex flex-col space-y-2 py-4">
+                  <Link
+                    href="/restaurants"
+                    className="flex px-3 py-2 text-xl hover:bg-accent"
+                  >
+                    Restaurants <ArrowRightIcon className="ml-4" />
+                  </Link>
+
+                  <Link
+                    href="/manage"
+                    className="flex px-3 py-2 text-xl hover:bg-accent"
+                  >
+                    My Bookings <ArrowRightIcon className="ml-4" />
+                  </Link>
+
+                  {session?.user && (
+                    <Link
+                      href="/profile"
+                      className="rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
+                    >
+                      Profile
+                    </Link>
+                  )}
+                </div>
+                
+                <DrawerFooter>
+                  {session?.user ? (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start px-3 py-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={handleSignOut}
+                    >
+                      Log out
+                    </Button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      
+                        <Button
+                          variant="outline"
+                          className="w-full justify-center"
+                        >
+                          <Link href="/sign-in">Log in</Link>
+                        </Button>
+                      
+                      
+                        <Button asChild className="w-full justify-center">
+                          <Link href="/sign-up">Get Started</Link>
+                        </Button>
+                      
+                    </div>
+                  )}
+                </DrawerFooter>
+              </DrawerContent>
+            </Drawer>
+          )}
+        </div>
       </div>
     </header>
-  );
+  )
 }

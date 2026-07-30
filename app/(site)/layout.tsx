@@ -8,7 +8,7 @@ export default function SiteLayout({
   return (
     <div className="flex min-h-screen flex-col bg-background selection:bg-primary/20">
       <SiteHeader />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 flex flex-col items-center px-4 md:px-8 xl:px-16">{children}</main>
     </div>
   );
 }

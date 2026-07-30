@@ -13,6 +13,19 @@ export { prisma };
  * Call this in `beforeEach` for full isolation between tests.
  */
 export async function clearDatabase(): Promise<void> {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error(
+      "Safety guard: clearDatabase() can only be run when NODE_ENV === 'test'."
+    );
+  }
+
+  const dbUrl = process.env.DATABASE_URL || "";
+  if (!dbUrl || dbUrl.includes("placeholder")) {
+    throw new Error(
+      "Safety guard: DATABASE_URL in .env.test is not set or contains placeholders. Please set a dedicated test database URL in .env.test."
+    );
+  }
+
   await prisma.reservationOnTable.deleteMany();
   await prisma.reservation.deleteMany();
   await prisma.table.deleteMany();
