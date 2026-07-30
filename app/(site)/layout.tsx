@@ -1,5 +1,10 @@
 import { SiteHeader } from "@/components/site-header";
 
+export const metadata = {
+  title: "Guestmaxxing",
+  description: "Seamless Booking for Restaurants and Guests",
+};
+
 export default function SiteLayout({
   children,
 }: {
