@@ -2,14 +2,12 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from '../generated/client'
 import {
   getTurnTime,
-  combineDateAndTime,
-  addMinutesToDate,
-  timeToMinutes,
   getEffectiveScheduleSlots,
   fitsInSchedule,
   generateAvailableTimeSlots
 } from "@/lib/schedule-utils"
 import { getRestaurantTodayStr, parseDateStr, toRestaurantUtcDate } from "@/lib/time-utils"
+import { ACTIVE_RESERVATION_STATUSES } from "@/lib/validations/reservation"
 
 const BUFFER_TIME = 10 // minutes for bussing/resetting table
 
@@ -95,8 +93,6 @@ export async function checkAvailability({
 
   // We use UTC date strings in the DB to strictly represent the calendar day regardless of server timezone.
   const reqDate = new Date(`${date}T00:00:00.000Z`)
-  const dayOfWeek = reqDate.getUTCDay()
-
   // 1 & 3. Validate schedule (overrides + operating hours + shift fit)
   const scheduleCheck = await checkScheduleValidity({
     restaurantId,
@@ -137,7 +133,7 @@ export async function checkAvailability({
       restaurantId,
       reservationDate: reqDate,
       status: {
-        in: ["PENDING", "CONFIRMED", "WAITLISTED", "ARRIVED", "PARTIALLY_ARRIVED", "SEATED"],
+        in: ACTIVE_RESERVATION_STATUSES,
       },
       // Conflict condition: (ExistingStart < RequestedEnd + Buffer) && (ExistingEnd > RequestedStart - Buffer)
       AND: [
@@ -248,7 +244,7 @@ export async function getAvailableSlotsForDate({
       restaurantId,
       reservationDate: reqDate,
       status: {
-        in: ["PENDING", "CONFIRMED", "WAITLISTED", "ARRIVED", "PARTIALLY_ARRIVED", "SEATED"],
+        in: ACTIVE_RESERVATION_STATUSES,
       },
       tables: {
         some: { tableId: { in: suitableTableIds } }

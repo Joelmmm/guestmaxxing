@@ -2,20 +2,14 @@ import { prisma } from "@/lib/prisma"
 import { checkAvailability, checkScheduleValidity } from "@/lib/availability"
 import { toRestaurantDateFilter } from "@/lib/time-utils"
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
-import { ReservationFormValues } from "@/lib/validations/reservation"
+import {
+  ACTIVE_RESERVATION_STATUSES,
+  ReservationFormValues,
+} from "@/lib/validations/reservation"
 import { upsertGuestForUser } from "@/lib/services/guests"
 import { sendReservationConfirmationEmail } from "@/lib/services/email"
-import { ReservationStatus } from "@/generated/client"
-import type { Prisma } from "@/generated/client"
-
-const ACTIVE_RESERVATION_STATUSES: ReservationStatus[] = [
-  "PENDING",
-  "CONFIRMED",
-  "WAITLISTED",
-  "ARRIVED",
-  "PARTIALLY_ARRIVED",
-  "SEATED",
-]
+import { Prisma, ReservationStatus } from "@/generated/client"
+import type { Prisma as PrismaTypes } from "@/generated/client"
 
 function isSerializationError(error: unknown) {
   const errorRecord =
@@ -37,7 +31,7 @@ function isSerializationError(error: unknown) {
 }
 
 async function validateAndCheckSpecificTables(
-  tx: Prisma.TransactionClient,
+  tx: PrismaTypes.TransactionClient,
   {
     restaurantId,
     tableIds,
@@ -52,17 +46,11 @@ async function validateAndCheckSpecificTables(
     excludeReservationId?: string
   }
 ) {
-  const uniqueTableIds = [...new Set(tableIds)]
-  const validTableCount = await tx.table.count({
-    where: {
-      id: { in: uniqueTableIds },
-      diningArea: { restaurantId },
-    },
-  })
-
-  if (validTableCount !== uniqueTableIds.length) {
-    throw new Error("SPECIFIC_TABLES_INVALID")
-  }
+  const uniqueTableIds = await validateSpecificTableOwnership(
+    tx,
+    restaurantId,
+    tableIds
+  )
 
   const overlapping = await tx.reservationOnTable.findFirst({
     where: {
@@ -80,6 +68,26 @@ async function validateAndCheckSpecificTables(
 
   if (overlapping) {
     throw new Error("SPECIFIC_TABLES_BOOKED")
+  }
+
+  return uniqueTableIds
+}
+
+async function validateSpecificTableOwnership(
+  tx: PrismaTypes.TransactionClient,
+  restaurantId: string,
+  tableIds: string[]
+) {
+  const uniqueTableIds = [...new Set(tableIds)]
+  const validTableCount = await tx.table.count({
+    where: {
+      id: { in: uniqueTableIds },
+      diningArea: { restaurantId },
+    },
+  })
+
+  if (validTableCount !== uniqueTableIds.length) {
+    throw new Error("SPECIFIC_TABLES_INVALID")
   }
 
   return uniqueTableIds
@@ -514,7 +522,15 @@ export async function updateReservation(
             throw new Error("INVALID_RESERVATION_TIME")
           }
 
-          const updateData: Prisma.ReservationUpdateInput = {
+          if (tableIds !== undefined && tableIds.length > 0) {
+            await validateSpecificTableOwnership(
+              tx,
+              existing.restaurantId,
+              tableIds
+            )
+          }
+
+          const updateData: PrismaTypes.ReservationUpdateInput = {
             status: status === undefined ? undefined : targetStatus,
             partySize:
               partySize === undefined ? undefined : targetPartySize,
