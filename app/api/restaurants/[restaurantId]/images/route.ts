@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { headers } from 'next/headers'
-import { addRestaurantImage, getRestaurantImages } from '@/lib/services/restaurant-images'
-import { restaurantImageSchema } from '@/lib/validations/restaurant-image'
+import { NextResponse } from "next/server"
+import {
+  addRestaurantImage,
+  getRestaurantImages,
+} from "@/lib/services/restaurant-images"
+import { restaurantImageSchema } from "@/lib/validations/restaurant-image"
+import { verifyRestaurantAccess } from "@/lib/api-utils"
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB limit per image to keep database size under control
 
@@ -15,8 +17,8 @@ export async function GET(
     const images = await getRestaurantImages(restaurantId)
     return NextResponse.json(images)
   } catch (error) {
-    console.error('[RESTAURANT_IMAGES_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[RESTAURANT_IMAGES_GET]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }
 
@@ -25,29 +27,36 @@ export async function POST(
   { params }: { params: Promise<{ restaurantId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    })
-    if (!session) return new NextResponse('Unauthorized', { status: 401 })
-
     const { restaurantId } = await params
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response
+
     const formData = await req.formData()
-    const file = formData.get('file') as File | null
+    const file = formData.get("file") as File | null
 
     if (!file) {
-      return new NextResponse('File is required', { status: 400 })
+      return new NextResponse("File is required", { status: 400 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return new NextResponse('File size exceeds the maximum allowed size of 2MB', { status: 400 })
+      return new NextResponse(
+        "File size exceeds the maximum allowed size of 2MB",
+        { status: 400 }
+      )
     }
 
-    const altText = (formData.get('altText') as string) || undefined
-    const isCover = formData.get('isCover') === 'true'
+    const altText = (formData.get("altText") as string) || undefined
+    const isCover = formData.get("isCover") === "true"
 
     const validation = restaurantImageSchema.safeParse({ altText, isCover })
     if (!validation.success) {
-      return NextResponse.json(validation.error.flatten().fieldErrors, { status: 400 })
+      return NextResponse.json(validation.error.flatten().fieldErrors, {
+        status: 400,
+      })
     }
 
     const bytes = await file.arrayBuffer()
@@ -56,14 +65,14 @@ export async function POST(
     const image = await addRestaurantImage({
       restaurantId,
       data: buffer,
-      mimeType: file.type || 'image/jpeg',
+      mimeType: file.type || "image/jpeg",
       altText: validation.data.altText,
       isCover: validation.data.isCover,
     })
 
     return NextResponse.json(image, { status: 201 })
   } catch (error) {
-    console.error('[RESTAURANT_IMAGES_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[RESTAURANT_IMAGES_POST]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }

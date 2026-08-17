@@ -34,17 +34,19 @@ import { guestSchema, type GuestFormValues } from "@/lib/validations/guest"
 import type { Guest } from "@/generated/client"
 
 interface GuestDialogProps {
+  restaurantId: string
   children?: React.ReactNode
   guest?: Guest
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
 
-export function GuestDialog({ 
+export function GuestDialog({
+  restaurantId,
   children,
   guest,
   open: controlledOpen,
-  onOpenChange: setControlledOpen
+  onOpenChange: setControlledOpen,
 }: GuestDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -90,7 +92,9 @@ export function GuestDialog({
   async function onSubmit(values: GuestFormValues) {
     setIsLoading(true)
     try {
-      const url = isEditing ? `/api/guests/${guest!.id}` : "/api/guests"
+      const url = isEditing
+        ? `/api/guests/${guest!.id}?restaurantId=${encodeURIComponent(restaurantId)}`
+        : "/api/guests"
       const method = isEditing ? "PATCH" : "POST"
 
       const response = await fetch(url, {
@@ -98,12 +102,14 @@ export function GuestDialog({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(isEditing ? values : { ...values, restaurantId }),
       })
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || `Failed to ${isEditing ? "update" : "create"} guest`)
+        throw new Error(
+          data.error || `Failed to ${isEditing ? "update" : "create"} guest`
+        )
       }
 
       toast.success(`Guest ${isEditing ? "updated" : "created"} successfully`)
@@ -111,7 +117,11 @@ export function GuestDialog({
       if (!isEditing) form.reset()
       router.refresh()
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Something went wrong. Please try again.")
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      )
       console.error(error)
     } finally {
       setIsLoading(false)
@@ -134,11 +144,13 @@ export function GuestDialog({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
               <User className="h-5 w-5 text-primary" weight="duotone" />
             </div>
-            <DialogTitle>{isEditing ? "Edit Guest" : "Add New Guest"}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Edit Guest" : "Add New Guest"}
+            </DialogTitle>
           </div>
           <DialogDescription>
-            {isEditing 
-              ? "Update guest information and preferences." 
+            {isEditing
+              ? "Update guest information and preferences."
               : "Enter the guest's contact information and any special notes."}
           </DialogDescription>
         </DialogHeader>
@@ -179,7 +191,11 @@ export function GuestDialog({
                 <FormItem>
                   <FormLabel>Email (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="john.doe@example.com" type="email" {...field} />
+                    <Input
+                      placeholder="john.doe@example.com"
+                      type="email"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -208,10 +224,10 @@ export function GuestDialog({
                     Internal Notes
                   </FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="VIP guest, allergic to shellfish, prefers window seating..." 
+                    <Textarea
+                      placeholder="VIP guest, allergic to shellfish, prefers window seating..."
                       className="min-h-[100px] resize-none"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormDescription>
@@ -221,19 +237,23 @@ export function GuestDialog({
                 </FormItem>
               )}
             />
-            <DialogFooter className="pt-4 gap-2 sm:gap-0">
-              <Button 
-                type="button" 
-                variant="outline" 
+            <DialogFooter className="gap-2 pt-4 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setCurrentOpen?.(false)}
                 disabled={isLoading}
               >
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading 
-                  ? (isEditing ? "Updating..." : "Creating...") 
-                  : (isEditing ? "Update Guest" : "Add Guest")}
+                {isLoading
+                  ? isEditing
+                    ? "Updating..."
+                    : "Creating..."
+                  : isEditing
+                    ? "Update Guest"
+                    : "Add Guest"}
               </Button>
             </DialogFooter>
           </form>

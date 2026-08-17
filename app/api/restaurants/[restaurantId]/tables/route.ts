@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyRestaurantAccess } from '@/lib/api-utils'
-import { tableSchema } from '@/lib/validations/table'
-import { validateBody } from '@/lib/api-utils'
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { verifyRestaurantAccess } from "@/lib/api-utils"
+import { tableSchema } from "@/lib/validations/table"
+import { validateBody } from "@/lib/api-utils"
 
 export async function GET(
   req: Request,
@@ -11,8 +11,12 @@ export async function GET(
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId);
-    if (!access.isAuthorized) return access.response;
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin", "member"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response
 
     const today = new Date()
 
@@ -20,6 +24,7 @@ export async function GET(
     const diningAreas = await prisma.diningArea.findMany({
       where: {
         restaurantId,
+        isActive: true,
       },
       include: {
         tables: {
@@ -32,7 +37,7 @@ export async function GET(
                 reservation: {
                   startTime: { lte: today },
                   endTime: { gte: today },
-                  status: { in: ['ARRIVED', 'SEATED'] },
+                  status: { in: ["ARRIVED", "SEATED"] },
                 },
               },
               include: {
@@ -46,19 +51,19 @@ export async function GET(
             },
           },
           orderBy: {
-            name: 'asc',
+            name: "asc",
           },
         },
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     })
 
     return NextResponse.json(diningAreas)
   } catch (error) {
-    console.error('[RESTAURANT_TABLES_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[RESTAURANT_TABLES_GET]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }
 
@@ -69,8 +74,12 @@ export async function POST(
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
-    if (!access.isAuthorized) return access.response;
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response
 
     const body = await req.json()
     const validation = validateBody(tableSchema, body)
@@ -79,7 +88,8 @@ export async function POST(
       return validation.response
     }
 
-    const { name, minCapacity, maxCapacity, diningAreaId, isActive } = validation.data
+    const { name, minCapacity, maxCapacity, diningAreaId, isActive } =
+      validation.data
 
     // Verify dining area belongs to this restaurant
     const diningArea = await prisma.diningArea.findFirst({
@@ -90,7 +100,9 @@ export async function POST(
     })
 
     if (!diningArea) {
-      return new NextResponse('Dining area not found in this restaurant', { status: 404 })
+      return new NextResponse("Dining area not found in this restaurant", {
+        status: 404,
+      })
     }
 
     const table = await prisma.table.create({
@@ -105,7 +117,7 @@ export async function POST(
 
     return NextResponse.json(table)
   } catch (error) {
-    console.error('[TABLES_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[TABLES_POST]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }

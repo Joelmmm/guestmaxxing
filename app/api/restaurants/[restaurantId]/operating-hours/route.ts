@@ -1,30 +1,33 @@
-import { NextResponse } from 'next/server'
-import { verifyRestaurantAccess, validateBody } from '@/lib/api-utils'
-import { operatingHoursSchema, scheduleOverrideSchema, operatingHoursPayloadSchema } from '@/lib/validations/operating-hours'
+import { NextResponse } from "next/server"
+import { verifyRestaurantAccess, validateBody } from "@/lib/api-utils"
+import { operatingHoursPayloadSchema } from "@/lib/validations/operating-hours"
 import {
   getSchedule,
   upsertOperatingHours,
   upsertScheduleOverride,
   saveScheduleBatch,
-} from '@/lib/services/operating-hours'
-import * as z from 'zod'
+} from "@/lib/services/operating-hours"
 
 interface OperatingHoursParams {
   params: Promise<{ restaurantId: string }>
 }
 
-export async function GET(_req: Request, { params }: OperatingHoursParams) {
+export async function GET(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId)
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin", "member"],
+      req.headers
+    )
     if (!access.isAuthorized) return access.response
 
     const schedule = await getSchedule(restaurantId)
     return NextResponse.json(schedule)
   } catch (error) {
-    console.error('[OPERATING_HOURS_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[OPERATING_HOURS_GET]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }
 
@@ -32,7 +35,11 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
   try {
     const { restaurantId } = await params
 
-    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin'])
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin"],
+      req.headers
+    )
     if (!access.isAuthorized) return access.response
 
     const body = await req.json()
@@ -42,19 +49,19 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
     const payload = validation.data
 
     // ── Single operating-hours upsert ─────────────────────────────────────
-    if (payload.type === 'HOURS') {
+    if (payload.type === "HOURS") {
       const result = await upsertOperatingHours(restaurantId, payload.data)
       return NextResponse.json(result)
     }
 
     // ── Single schedule-override upsert ───────────────────────────────────
-    if (payload.type === 'OVERRIDE') {
+    if (payload.type === "OVERRIDE") {
       const result = await upsertScheduleOverride(restaurantId, payload.data)
       return NextResponse.json(result)
     }
 
     // ── Full schedule batch save ───────────────────────────────────────────
-    if (payload.type === 'SCHEDULE_BATCH') {
+    if (payload.type === "SCHEDULE_BATCH") {
       const result = await saveScheduleBatch(
         restaurantId,
         payload.data.hours,
@@ -63,9 +70,9 @@ export async function POST(req: Request, { params }: OperatingHoursParams) {
       return NextResponse.json(result)
     }
 
-    return new NextResponse('Invalid type', { status: 400 })
+    return new NextResponse("Invalid type", { status: 400 })
   } catch (error) {
-    console.error('[OPERATING_HOURS_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[OPERATING_HOURS_POST]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }

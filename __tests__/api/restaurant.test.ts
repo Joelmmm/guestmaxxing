@@ -1,8 +1,12 @@
-import { expect, test, describe, beforeEach } from "vitest";
-import { POST } from "@/app/api/restaurants/route";
-import { clearDatabase, prisma } from "@/__tests__/helpers/db";
-import { buildPostRequest, expectOk, expectStatus } from "@/__tests__/helpers/request";
-import { seedRestaurant } from "@/__tests__/helpers/seed";
+import { expect, test, describe, beforeEach } from "vitest"
+import { POST } from "@/app/api/restaurants/route"
+import { clearDatabase, prisma } from "@/__tests__/helpers/db"
+import {
+  buildPostRequest,
+  expectOk,
+  expectStatus,
+} from "@/__tests__/helpers/request"
+import { seedRestaurant, seedTestMembership } from "@/__tests__/helpers/seed"
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -14,33 +18,42 @@ const BASE_PAYLOAD = {
   contactEmail: "contact@gourmet.com",
   contactPhone: "+1234567890",
   isActive: true,
-};
+  isAcceptingReservations: true,
+}
 
-const URL = "http://localhost:3000/api/restaurants";
+const URL = "http://localhost:3000/api/restaurants"
 
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
 
 describe("POST /api/restaurants", () => {
-  beforeEach(clearDatabase);
+  beforeEach(async () => {
+    await clearDatabase()
+    await seedTestMembership()
+  })
 
   test("should create a new restaurant successfully", async () => {
-    const req = buildPostRequest(URL, BASE_PAYLOAD);
-    const res = await POST(req);
+    const req = buildPostRequest(URL, BASE_PAYLOAD)
+    const res = await POST(req)
 
-    const json = await expectOk<{ id: string; name: string; slug: string; timezone: string }>(res);
+    const json = await expectOk<{
+      id: string
+      name: string
+      slug: string
+      timezone: string
+    }>(res)
 
-    expect(json.name).toBe(BASE_PAYLOAD.name);
+    expect(json.name).toBe(BASE_PAYLOAD.name)
     // slugify("New Gourmet Restaurant") → "new-gourmet-restaurant"
-    expect(json.slug).toBe("new-gourmet-restaurant");
-    expect(json.timezone).toBe(BASE_PAYLOAD.timezone);
+    expect(json.slug).toBe("new-gourmet-restaurant")
+    expect(json.timezone).toBe(BASE_PAYLOAD.timezone)
 
     // Verify persistence
-    const inDb = await prisma.restaurant.findUnique({ where: { id: json.id } });
-    expect(inDb).toBeDefined();
-    expect(inDb?.name).toBe(BASE_PAYLOAD.name);
-  });
+    const inDb = await prisma.restaurant.findUnique({ where: { id: json.id } })
+    expect(inDb).toBeDefined()
+    expect(inDb?.name).toBe(BASE_PAYLOAD.name)
+  })
 
   test("should handle duplicate slugs by appending a suffix", async () => {
     // Pre-seed a restaurant that will conflict on slug
@@ -49,27 +62,30 @@ describe("POST /api/restaurants", () => {
       slug: "test-restaurant",
       contactEmail: "test1@example.com",
       timezone: "UTC",
-    });
+      organizationId: "other-org-id",
+      grantAccess: false,
+    })
 
     const req = buildPostRequest(URL, {
       name: "Test Restaurant",
       timezone: "UTC",
       contactEmail: "test2@example.com",
       isActive: true,
-    });
+      isAcceptingReservations: true,
+    })
 
-    const res = await POST(req);
-    const json = await expectOk<{ slug: string }>(res);
-    expect(json.slug).toBe("test-restaurant-1");
-  });
+    const res = await POST(req)
+    const json = await expectOk<{ slug: string }>(res)
+    expect(json.slug).toBe("test-restaurant-1")
+  })
 
   test("should return 400 if name is too short", async () => {
     const req = buildPostRequest(URL, {
       ...BASE_PAYLOAD,
       name: "A",
-    });
+    })
 
-    const res = await POST(req);
-    await expectStatus(res, 400);
-  });
-});
+    const res = await POST(req)
+    await expectStatus(res, 400)
+  })
+})

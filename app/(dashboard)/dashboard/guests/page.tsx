@@ -15,14 +15,17 @@ export default async function GuestsPage({
 
   if (!result) {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 min-h-[70vh] text-center max-w-md mx-auto">
+      <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-6 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
           <Storefront size={40} weight="duotone" className="text-primary" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">No Restaurant Found</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            No Restaurant Found
+          </h1>
           <p className="text-muted-foreground">
-            You need to create a restaurant before managing your guest directory.
+            You need to create a restaurant before managing your guest
+            directory.
           </p>
         </div>
       </div>
@@ -30,13 +33,17 @@ export default async function GuestsPage({
   }
 
   const { restaurant } = result
-  
+
   // Parse Search Params
   const resolvedSearchParams = await searchParams
   const page = Number(resolvedSearchParams.page) || 1
-  const q = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : ""
-  const tab = typeof resolvedSearchParams.tab === "string" ? resolvedSearchParams.tab : "all"
-  
+  const q =
+    typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : ""
+  const tab =
+    typeof resolvedSearchParams.tab === "string"
+      ? resolvedSearchParams.tab
+      : "all"
+
   const take = 15
   const skip = (page - 1) * take
 
@@ -76,7 +83,9 @@ export default async function GuestsPage({
       include: {
         _count: {
           select: {
-            reservations: true,
+            reservations: {
+              where: { restaurantId: restaurant.id },
+            },
           },
         },
       },
@@ -87,27 +96,30 @@ export default async function GuestsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <Users size={24} weight="duotone" className="text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Guest Directory</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Guest Directory
+            </h1>
           </div>
           <p className="text-muted-foreground">
             Manage your customer database, history, and engagement.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <GuestDialog />
+          <GuestDialog restaurantId={restaurant.id} />
         </div>
       </div>
 
       <div className="grid gap-4">
         <GuestsFilters currentTab={tab} currentQuery={q} />
-        <GuestsList 
-          guests={guests} 
+        <GuestsList
+          restaurantId={restaurant.id}
+          guests={guests}
           totalPages={totalPages}
           currentPage={page}
         />

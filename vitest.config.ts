@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   resolve: {
@@ -14,5 +14,6 @@ export default defineConfig({
     // Running files in parallel causes clearDatabase() in one file
     // to wipe rows that another file just seeded → FK violations.
     fileParallelism: false,
+    restoreMocks: true,
   },
-});
+})

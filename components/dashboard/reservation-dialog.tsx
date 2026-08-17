@@ -149,7 +149,7 @@ export function ReservationDialog({
         tableIds: reservation?.tables?.map((t) => t.tableId) || [],
       })
     }
-  }, [open, reservation, form, restaurantId])
+  }, [open, reservation, form, restaurantId, restaurantTimezone])
 
   const { isSubmitting } = form.formState
 
@@ -171,11 +171,11 @@ export function ReservationDialog({
         onSuccess()
         onOpenChange(false)
       } else {
-        const errorText = result.error
+        const errorText = result.error || "Something went wrong"
         if (errorText.includes("already booked") || errorText.includes("No tables available")) {
           form.setError("tableIds", { message: errorText })
         } else {
-          toast.error(errorText || "Something went wrong")
+          toast.error(errorText)
         }
       }
     } catch (error: unknown) {

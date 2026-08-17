@@ -2,10 +2,14 @@ import * as z from "zod"
 
 export const restaurantSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters."),
-  slug: z.string()
+  slug: z
+    .string()
     .trim()
     .min(2, "Slug must be at least 2 characters.")
-    .regex(/^[a-z0-9-]+$/, "Slug must only contain lowercase letters, numbers, and hyphens.")
+    .regex(
+      /^[a-z0-9-]+$/,
+      "Slug must only contain lowercase letters, numbers, and hyphens."
+    )
     .optional()
     .or(z.literal("")),
   contactEmail: z.string().email("Please enter a valid email address."),
@@ -16,4 +20,3 @@ export const restaurantSchema = z.object({
 })
 
 export type RestaurantFormValues = z.infer<typeof restaurantSchema>
-
