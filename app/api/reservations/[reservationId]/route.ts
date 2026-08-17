@@ -63,11 +63,52 @@ export async function PATCH(req: Request, { params }: ReservationDetailParams) {
 
     return NextResponse.json(reservation)
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "SPECIFIC_TABLES_INVALID") {
-      return new NextResponse(
-        "One or more tables do not belong to this restaurant",
-        { status: 400 }
-      )
+    if (error instanceof Error) {
+      if (error.message === "RESERVATION_NOT_FOUND") {
+        return new NextResponse("Reservation not found", { status: 404 })
+      }
+      if (error.message === "SPECIFIC_TABLES_INVALID") {
+        return new NextResponse(
+          "One or more tables do not belong to this restaurant",
+          { status: 400 }
+        )
+      }
+      if (error.message === "INVALID_RESERVATION_STATUS") {
+        return new NextResponse("Invalid reservation status", { status: 400 })
+      }
+      if (error.message === "INVALID_RESERVATION_TIME") {
+        return new NextResponse("Invalid reservation time", { status: 400 })
+      }
+      if (error.message === "SPECIFIC_TABLES_BOOKED") {
+        return new NextResponse(
+          "One or more specific tables are already booked for this time slot.",
+          { status: 409 }
+        )
+      }
+      if (error.message === "RESTAURANT_CLOSED") {
+        return new NextResponse(
+          "The restaurant is closed on the selected date.",
+          { status: 409 }
+        )
+      }
+      if (error.message === "OUTSIDE_OPERATING_HOURS") {
+        return new NextResponse(
+          "The requested time falls outside operating hours.",
+          { status: 409 }
+        )
+      }
+      if (error.message === "NO_TABLES_AVAILABLE") {
+        return new NextResponse(
+          "No tables available for this party size at the requested time.",
+          { status: 409 }
+        )
+      }
+      if (error.message === "CONCURRENT_BOOKING_FAILED") {
+        return new NextResponse(
+          "Transaction failed due to a concurrent booking. Please try again.",
+          { status: 409 }
+        )
+      }
     }
 
     console.error("[RESERVATION_PATCH]", error)

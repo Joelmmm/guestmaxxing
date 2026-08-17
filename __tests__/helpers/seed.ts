@@ -194,6 +194,7 @@ export async function seedReservation(
     startTime: Date
     endTime: Date
     status: Reservation["status"]
+    tableIds: string[]
   }> = {}
 ): Promise<Reservation> {
   const startTime = overrides.startTime || new Date("2026-10-12T19:00:00.000Z")
@@ -208,6 +209,13 @@ export async function seedReservation(
       startTime,
       endTime: overrides.endTime || new Date(startTime.getTime() + 90 * 60_000),
       status: overrides.status || "CONFIRMED",
+      tables: overrides.tableIds
+        ? {
+            create: overrides.tableIds.map((tableId) => ({
+              table: { connect: { id: tableId } },
+            })),
+          }
+        : undefined,
     },
   })
 }

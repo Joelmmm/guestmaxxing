@@ -1,12 +1,89 @@
 import { prisma } from "@/lib/prisma"
 import { checkAvailability, checkScheduleValidity } from "@/lib/availability"
 import { toRestaurantDateFilter } from "@/lib/time-utils"
-import { fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { ReservationFormValues } from "@/lib/validations/reservation"
 import { upsertGuestForUser } from "@/lib/services/guests"
 import { sendReservationConfirmationEmail } from "@/lib/services/email"
 import { ReservationStatus } from "@/generated/client"
 import type { Prisma } from "@/generated/client"
+
+const ACTIVE_RESERVATION_STATUSES: ReservationStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "WAITLISTED",
+  "ARRIVED",
+  "PARTIALLY_ARRIVED",
+  "SEATED",
+]
+
+function isSerializationError(error: unknown) {
+  const errorRecord =
+    error && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : null
+  const causeRecord =
+    errorRecord?.cause && typeof errorRecord.cause === "object"
+      ? (errorRecord.cause as Record<string, unknown>)
+      : null
+
+  return (
+    errorRecord?.code === "P2034" ||
+    causeRecord?.kind === "TransactionWriteConflict" ||
+    causeRecord?.originalCode === "40001" ||
+    (typeof errorRecord?.message === "string" &&
+      errorRecord.message.toLowerCase().includes("could not serialize access"))
+  )
+}
+
+async function validateAndCheckSpecificTables(
+  tx: Prisma.TransactionClient,
+  {
+    restaurantId,
+    tableIds,
+    absoluteStartTime,
+    absoluteEndTime,
+    excludeReservationId,
+  }: {
+    restaurantId: string
+    tableIds: string[]
+    absoluteStartTime: Date
+    absoluteEndTime: Date
+    excludeReservationId?: string
+  }
+) {
+  const uniqueTableIds = [...new Set(tableIds)]
+  const validTableCount = await tx.table.count({
+    where: {
+      id: { in: uniqueTableIds },
+      diningArea: { restaurantId },
+    },
+  })
+
+  if (validTableCount !== uniqueTableIds.length) {
+    throw new Error("SPECIFIC_TABLES_INVALID")
+  }
+
+  const overlapping = await tx.reservationOnTable.findFirst({
+    where: {
+      tableId: { in: uniqueTableIds },
+      reservation: {
+        ...(excludeReservationId
+          ? { id: { not: excludeReservationId } }
+          : {}),
+        status: { in: ACTIVE_RESERVATION_STATUSES },
+        startTime: { lt: absoluteEndTime },
+        endTime: { gt: absoluteStartTime },
+      },
+    },
+  })
+
+  if (overlapping) {
+    throw new Error("SPECIFIC_TABLES_BOOKED")
+  }
+
+  return uniqueTableIds
+}
 
 /**
  * Service Layer for Reservations
@@ -197,46 +274,12 @@ export async function createReservation(
 
           if (tableIds && tableIds.length > 0) {
             // Specific table assignment (Manual Override)
-            const uniqueTableIds = [...new Set(tableIds)]
-            const validTableCount = await tx.table.count({
-              where: {
-                id: { in: uniqueTableIds },
-                diningArea: { restaurantId },
-              },
+            finalTableIds = await validateAndCheckSpecificTables(tx, {
+              restaurantId,
+              tableIds,
+              absoluteStartTime,
+              absoluteEndTime,
             })
-
-            if (validTableCount !== uniqueTableIds.length) {
-              throw new Error("SPECIFIC_TABLES_INVALID")
-            }
-
-            const overlapping = await tx.reservationOnTable.findFirst({
-              where: {
-                tableId: { in: tableIds },
-                reservation: {
-                  status: {
-                    in: [
-                      "PENDING",
-                      "CONFIRMED",
-                      "WAITLISTED",
-                      "ARRIVED",
-                      "PARTIALLY_ARRIVED",
-                      "SEATED",
-                    ],
-                  },
-                  OR: [
-                    {
-                      startTime: { lt: absoluteEndTime },
-                      endTime: { gt: absoluteStartTime },
-                    },
-                  ],
-                },
-              },
-            })
-
-            if (overlapping) {
-              throw new Error("SPECIFIC_TABLES_BOOKED")
-            }
-            finalTableIds = tableIds
           } else {
             // Dynamic Table Assignment (Standard Booking)
             const requestDate = reservationDate
@@ -293,7 +336,7 @@ export async function createReservation(
             },
           })
         },
-        { isolationLevel: "Serializable" }
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       )
 
       break // transaction success, exit retry loop
@@ -310,24 +353,7 @@ export async function createReservation(
         throw error
       }
 
-      const errorRecord =
-        error && typeof error === "object"
-          ? (error as Record<string, unknown>)
-          : null
-      const causeRecord =
-        errorRecord?.cause && typeof errorRecord.cause === "object"
-          ? (errorRecord.cause as Record<string, unknown>)
-          : null
-      const isSerializationError =
-        errorRecord?.code === "P2034" ||
-        causeRecord?.kind === "TransactionWriteConflict" ||
-        causeRecord?.originalCode === "40001" ||
-        (typeof errorRecord?.message === "string" &&
-          errorRecord.message
-            .toLowerCase()
-            .includes("could not serialize access"))
-
-      if (isSerializationError) {
+      if (isSerializationError(error)) {
         retries--
         if (retries === 0) {
           throw new Error("CONCURRENT_BOOKING_FAILED")
@@ -371,6 +397,8 @@ export async function createReservation(
 export interface UpdateReservationInput {
   status?: ReservationStatus | string
   partySize?: number | string
+  reservationDate?: string
+  durationMins?: number | string
   startTime?: Date | string
   endTime?: Date | string
   tableIds?: string[]
@@ -385,6 +413,8 @@ export async function updateReservation(
   const {
     status,
     partySize,
+    reservationDate,
+    durationMins,
     startTime,
     endTime,
     tableIds,
@@ -399,47 +429,191 @@ export async function updateReservation(
     throw new Error("INVALID_RESERVATION_STATUS")
   }
 
-  const updateData: Prisma.ReservationUpdateInput = {
-    status: status as ReservationStatus | undefined,
-    partySize: partySize ? Number(partySize) : undefined,
-    startTime: startTime ? new Date(startTime) : undefined,
-    endTime: endTime ? new Date(endTime) : undefined,
-    internalNotes,
-    specialRequest,
+  let retries = 3
+  while (retries > 0) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.reservation.findUnique({
+            where: { id: reservationId },
+            include: {
+              restaurant: { select: { timezone: true } },
+              tables: { select: { tableId: true } },
+            },
+          })
+
+          if (!existing) throw new Error("RESERVATION_NOT_FOUND")
+
+          const hasScheduleChange =
+            reservationDate !== undefined ||
+            startTime !== undefined ||
+            endTime !== undefined ||
+            durationMins !== undefined ||
+            partySize !== undefined
+          const targetStatus = (status ?? existing.status) as ReservationStatus
+          const targetPartySize =
+            partySize !== undefined ? Number(partySize) : existing.partySize
+          const targetDate =
+            reservationDate ?? existing.reservationDate.toISOString().slice(0, 10)
+
+          let absoluteStartTime: Date
+          if (startTime === undefined && reservationDate !== undefined) {
+            const localStartTime = formatInTimeZone(
+              existing.startTime,
+              existing.restaurant.timezone,
+              "HH:mm"
+            )
+            absoluteStartTime = fromZonedTime(
+              `${targetDate} ${localStartTime}`,
+              existing.restaurant.timezone
+            )
+          } else if (
+            typeof startTime === "string" &&
+            /^\d{2}:\d{2}$/.test(startTime)
+          ) {
+            absoluteStartTime = fromZonedTime(
+              `${targetDate} ${startTime}`,
+              existing.restaurant.timezone
+            )
+          } else {
+            absoluteStartTime = startTime
+              ? new Date(startTime)
+              : existing.startTime
+          }
+
+          let absoluteEndTime: Date
+          if (
+            typeof endTime === "string" &&
+            /^\d{2}:\d{2}$/.test(endTime)
+          ) {
+            absoluteEndTime = fromZonedTime(
+              `${targetDate} ${endTime}`,
+              existing.restaurant.timezone
+            )
+          } else if (endTime !== undefined) {
+            absoluteEndTime = new Date(endTime)
+          } else if (durationMins !== undefined) {
+            absoluteEndTime = new Date(
+              absoluteStartTime.getTime() + Number(durationMins) * 60_000
+            )
+          } else if (startTime !== undefined || reservationDate !== undefined) {
+            const existingDuration =
+              existing.endTime.getTime() - existing.startTime.getTime()
+            absoluteEndTime = new Date(
+              absoluteStartTime.getTime() + existingDuration
+            )
+          } else {
+            absoluteEndTime = existing.endTime
+          }
+
+          if (
+            !Number.isFinite(absoluteStartTime.getTime()) ||
+            !Number.isFinite(absoluteEndTime.getTime()) ||
+            absoluteEndTime <= absoluteStartTime
+          ) {
+            throw new Error("INVALID_RESERVATION_TIME")
+          }
+
+          const updateData: Prisma.ReservationUpdateInput = {
+            status: status === undefined ? undefined : targetStatus,
+            partySize:
+              partySize === undefined ? undefined : targetPartySize,
+            reservationDate: hasScheduleChange
+              ? toRestaurantDateFilter(targetDate)
+              : undefined,
+            startTime: hasScheduleChange ? absoluteStartTime : undefined,
+            endTime: hasScheduleChange ? absoluteEndTime : undefined,
+            internalNotes,
+            specialRequest,
+          }
+
+          const shouldValidateConflicts =
+            targetStatus !== "CANCELLED" &&
+            targetStatus !== "COMPLETED" &&
+            targetStatus !== "NO_SHOW" &&
+            (hasScheduleChange || tableIds !== undefined)
+
+          if (shouldValidateConflicts) {
+            const scheduleCheck = await checkScheduleValidity(
+              {
+                restaurantId: existing.restaurantId,
+                date: targetDate,
+                time: formatInTimeZone(
+                  absoluteStartTime,
+                  existing.restaurant.timezone,
+                  "HH:mm"
+                ),
+                durationMins: Math.round(
+                  (absoluteEndTime.getTime() - absoluteStartTime.getTime()) /
+                    60_000
+                ),
+              },
+              tx
+            )
+
+            if (!scheduleCheck.valid) {
+              if (scheduleCheck.reason === "RESTAURANT_CLOSED") {
+                throw new Error("RESTAURANT_CLOSED")
+              }
+              if (scheduleCheck.reason === "NO_OPERATING_HOURS") {
+                throw new Error("NO_TABLES_AVAILABLE")
+              }
+              throw new Error("OUTSIDE_OPERATING_HOURS")
+            }
+
+            const requestedTableIds =
+              tableIds === undefined
+                ? existing.tables.map(({ tableId }) => tableId)
+                : [...new Set(tableIds)]
+
+            if (requestedTableIds.length > 0) {
+              const finalTableIds = await validateAndCheckSpecificTables(tx, {
+                restaurantId: existing.restaurantId,
+                tableIds: requestedTableIds,
+                absoluteStartTime,
+                absoluteEndTime,
+                excludeReservationId: reservationId,
+              })
+
+              if (tableIds !== undefined) {
+                await tx.reservationOnTable.deleteMany({
+                  where: { reservationId },
+                })
+                updateData.tables = {
+                  create: finalTableIds.map((tableId) => ({
+                    table: { connect: { id: tableId } },
+                  })),
+                }
+              }
+            } else if (tableIds !== undefined) {
+              updateData.tables = { deleteMany: {} }
+            }
+          }
+
+          return tx.reservation.update({
+            where: { id: reservationId },
+            data: updateData,
+          })
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      )
+    } catch (error: unknown) {
+      if (isSerializationError(error)) {
+        retries--
+        if (retries === 0) {
+          throw new Error("CONCURRENT_BOOKING_FAILED")
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, 20 + Math.random() * 30)
+        )
+        continue
+      }
+
+      throw error
+    }
   }
 
-  return prisma.$transaction(async (tx) => {
-    if (tableIds && tableIds.length > 0) {
-      const reservation = await tx.reservation.findUnique({
-        where: { id: reservationId },
-        select: { restaurantId: true },
-      })
-      if (!reservation) throw new Error("RESERVATION_NOT_FOUND")
-
-      const uniqueTableIds = [...new Set(tableIds)]
-      const validTableCount = await tx.table.count({
-        where: {
-          id: { in: uniqueTableIds },
-          diningArea: { restaurantId: reservation.restaurantId },
-        },
-      })
-      if (validTableCount !== uniqueTableIds.length) {
-        throw new Error("SPECIFIC_TABLES_INVALID")
-      }
-
-      await tx.reservationOnTable.deleteMany({ where: { reservationId } })
-      updateData.tables = {
-        create: uniqueTableIds.map((tableId) => ({
-          table: { connect: { id: tableId } },
-        })),
-      }
-    }
-
-    return tx.reservation.update({
-      where: { id: reservationId },
-      data: updateData,
-    })
-  })
+  throw new Error("CONCURRENT_BOOKING_FAILED")
 }
 
 export async function deleteReservation(reservationId: string) {

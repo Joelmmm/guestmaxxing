@@ -1,7 +1,12 @@
 import { expect, test, describe, beforeEach } from "vitest";
 import { POST } from "@/app/api/reservations/route";
+import { updateReservation } from "@/lib/services/reservations";
 import { clearDatabase, prisma } from "@/__tests__/helpers/db";
-import { seedRestaurantFixture, seedGuest } from "@/__tests__/helpers/seed";
+import {
+  seedRestaurantFixture,
+  seedGuest,
+  seedReservation,
+} from "@/__tests__/helpers/seed";
 import { buildPostRequest, expectOk, expectStatus } from "@/__tests__/helpers/request";
 
 // ---------------------------------------------------------------------------
@@ -157,6 +162,53 @@ describe("POST /api/reservations", () => {
 
     const statuses = [res1.status, res2.status].sort();
     expect(statuses).toEqual([200, 409]);
+  });
+
+  test("should reject an update that moves a reservation onto a booked table", async () => {
+    const guest2 = await seedGuest({ email: "second-guest@example.com" });
+    const bookedReservation = await seedReservation(restaurantId, guestId, {
+      startTime: new Date("2026-10-12T19:00:00.000Z"),
+      endTime: new Date("2026-10-12T20:30:00.000Z"),
+      tableIds: [table1Id],
+    });
+    const reservationToMove = await seedReservation(restaurantId, guest2.id, {
+      startTime: new Date("2026-10-12T19:00:00.000Z"),
+      endTime: new Date("2026-10-12T20:30:00.000Z"),
+      tableIds: [table2Id],
+    });
+
+    await expect(
+      updateReservation(reservationToMove.id, {
+        reservationDate: TEST_DATE,
+        startTime: "16:00",
+        durationMins: 90,
+        tableIds: [table1Id],
+      })
+    ).rejects.toThrow("SPECIFIC_TABLES_BOOKED");
+
+    const assignments = await prisma.reservationOnTable.findMany({
+      where: { reservationId: reservationToMove.id },
+    });
+    expect(assignments).toEqual([
+      expect.objectContaining({ tableId: table2Id }),
+    ]);
+  });
+
+  test("should allow an update to keep its current table and time", async () => {
+    const reservation = await seedReservation(restaurantId, guestId, {
+      startTime: new Date("2026-10-12T19:00:00.000Z"),
+      endTime: new Date("2026-10-12T20:30:00.000Z"),
+      tableIds: [table1Id],
+    });
+
+    await expect(
+      updateReservation(reservation.id, {
+        reservationDate: TEST_DATE,
+        startTime: "16:00",
+        durationMins: 90,
+        tableIds: [table1Id],
+      })
+    ).resolves.toBeDefined();
   });
 
   // -------------------------------------------------------------------------
