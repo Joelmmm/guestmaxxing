@@ -40,11 +40,6 @@ function buildReservationPayload(
   tableIds?: string[],
   durationMins = 90
 ) {
-  const startTime = `${date}T${timeUtc}:00.000Z`;
-  const endTime = new Date(
-    new Date(startTime).getTime() + durationMins * 60_000
-  ).toISOString();
-
   const payload: Record<string, unknown> = {
     restaurantId,
     guestId,
@@ -113,6 +108,31 @@ describe("POST /api/reservations", () => {
     expect([table1Id, table2Id]).toContain(inDb?.tables[0].tableId);
   });
 
+  test("should avoid a table occupied by a LATE reservation", async () => {
+    await seedReservation(restaurantId, guestId, {
+      status: "LATE",
+      startTime: new Date("2026-10-12T22:00:00.000Z"),
+      endTime: new Date("2026-10-12T23:30:00.000Z"),
+      tableIds: [table1Id],
+    });
+
+    const res = await POST(
+      buildPostRequest(
+        URL,
+        buildReservationPayload(restaurantId, guestId, TEST_DATE, "19:00")
+      )
+    );
+    const json = await expectOk<{ id: string }>(res);
+    const created = await prisma.reservation.findUnique({
+      where: { id: json.id },
+      include: { tables: true },
+    });
+
+    expect(created?.tables).toEqual([
+      expect.objectContaining({ tableId: table2Id }),
+    ]);
+  });
+
   // -------------------------------------------------------------------------
   // Concurrency — the core guarantee
   // -------------------------------------------------------------------------
@@ -164,9 +184,34 @@ describe("POST /api/reservations", () => {
     expect(statuses).toEqual([200, 409]);
   });
 
-  test("should reject an update that moves a reservation onto a booked table", async () => {
+  test("should reject an explicit table assignment occupied by a LATE reservation", async () => {
+    await seedReservation(restaurantId, guestId, {
+      status: "LATE",
+      startTime: new Date("2026-10-12T22:00:00.000Z"),
+      endTime: new Date("2026-10-12T23:30:00.000Z"),
+      tableIds: [table1Id],
+    });
+
+    const res = await POST(
+      buildPostRequest(
+        URL,
+        buildReservationPayload(
+          restaurantId,
+          guestId,
+          TEST_DATE,
+          "19:00",
+          [table1Id]
+        )
+      )
+    );
+
+    await expectStatus(res, 409);
+  });
+
+  test("should reject an update that moves a reservation onto a table with a LATE reservation", async () => {
     const guest2 = await seedGuest({ email: "second-guest@example.com" });
-    const bookedReservation = await seedReservation(restaurantId, guestId, {
+    await seedReservation(restaurantId, guestId, {
+      status: "LATE",
       startTime: new Date("2026-10-12T19:00:00.000Z"),
       endTime: new Date("2026-10-12T20:30:00.000Z"),
       tableIds: [table1Id],
