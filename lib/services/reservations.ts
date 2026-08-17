@@ -5,6 +5,8 @@ import { fromZonedTime } from "date-fns-tz"
 import { ReservationFormValues } from "@/lib/validations/reservation"
 import { upsertGuestForUser } from "@/lib/services/guests"
 import { sendReservationConfirmationEmail } from "@/lib/services/email"
+import { ReservationStatus } from "@/generated/client"
+import type { Prisma } from "@/generated/client"
 
 /**
  * Service Layer for Reservations
@@ -16,13 +18,18 @@ export async function getReservations(
   date?: string,
   status?: string
 ) {
-  const where: any = { restaurantId }
+  const where: Prisma.ReservationWhereInput = { restaurantId }
 
   if (date) {
     where.reservationDate = toRestaurantDateFilter(date)
   }
   if (status) {
-    where.status = status
+    if (
+      !Object.values(ReservationStatus).includes(status as ReservationStatus)
+    ) {
+      throw new Error("INVALID_RESERVATION_STATUS")
+    }
+    where.status = status as ReservationStatus
   }
 
   return await prisma.reservation.findMany({
@@ -86,6 +93,25 @@ export async function createReservation(
 
   // 1. Resolve Guest
   let resolvedGuestId = guestId
+
+  if (resolvedGuestId && !isInternal) {
+    if (!userId) {
+      throw new Error("GUEST_ACCESS_DENIED")
+    }
+
+    const ownedGuest = await prisma.guest.findFirst({
+      where: { id: resolvedGuestId, userId },
+      select: { id: true },
+    })
+
+    if (!ownedGuest) {
+      throw new Error("GUEST_ACCESS_DENIED")
+    }
+  }
+
+  if (!isInternal && tableIds && tableIds.length > 0) {
+    throw new Error("TABLE_ASSIGNMENT_FORBIDDEN")
+  }
 
   if (!resolvedGuestId && userId && guestData && email) {
     const res = await upsertGuestForUser({
@@ -171,6 +197,18 @@ export async function createReservation(
 
           if (tableIds && tableIds.length > 0) {
             // Specific table assignment (Manual Override)
+            const uniqueTableIds = [...new Set(tableIds)]
+            const validTableCount = await tx.table.count({
+              where: {
+                id: { in: uniqueTableIds },
+                diningArea: { restaurantId },
+              },
+            })
+
+            if (validTableCount !== uniqueTableIds.length) {
+              throw new Error("SPECIFIC_TABLES_INVALID")
+            }
+
             const overlapping = await tx.reservationOnTable.findFirst({
               where: {
                 tableId: { in: tableIds },
@@ -259,32 +297,33 @@ export async function createReservation(
       )
 
       break // transaction success, exit retry loop
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (
         error instanceof Error &&
         (error.message === "SPECIFIC_TABLES_BOOKED" ||
           error.message === "NO_TABLES_AVAILABLE" ||
           error.message === "RESTAURANT_CLOSED" ||
           error.message === "OUTSIDE_OPERATING_HOURS" ||
-          error.message === "NOT_ACCEPTING_RESERVATIONS")
+          error.message === "NOT_ACCEPTING_RESERVATIONS" ||
+          error.message === "SPECIFIC_TABLES_INVALID")
       ) {
         throw error
       }
 
+      const errorRecord =
+        error && typeof error === "object"
+          ? (error as Record<string, unknown>)
+          : null
+      const causeRecord =
+        errorRecord?.cause && typeof errorRecord.cause === "object"
+          ? (errorRecord.cause as Record<string, unknown>)
+          : null
       const isSerializationError =
-        (error &&
-          typeof error === "object" &&
-          "code" in error &&
-          error.code === "P2034") ||
-        (error &&
-          typeof error === "object" &&
-          ((error as any).cause?.kind === "TransactionWriteConflict" ||
-            (error as any).cause?.originalCode === "40001")) ||
-        (error &&
-          typeof error === "object" &&
-          "message" in error &&
-          typeof (error as any).message === "string" &&
-          (error as any).message
+        errorRecord?.code === "P2034" ||
+        causeRecord?.kind === "TransactionWriteConflict" ||
+        causeRecord?.originalCode === "40001" ||
+        (typeof errorRecord?.message === "string" &&
+          errorRecord.message
             .toLowerCase()
             .includes("could not serialize access"))
 
@@ -308,7 +347,7 @@ export async function createReservation(
       month: "long",
       day: "numeric",
     }).format(reservation.startTime)
-    
+
     const formattedTime = new Intl.DateTimeFormat("en-US", {
       timeZone: restaurant.timezone,
       hour: "numeric",
@@ -329,7 +368,20 @@ export async function createReservation(
   return reservation
 }
 
-export async function updateReservation(reservationId: string, data: any) {
+export interface UpdateReservationInput {
+  status?: ReservationStatus | string
+  partySize?: number | string
+  startTime?: Date | string
+  endTime?: Date | string
+  tableIds?: string[]
+  internalNotes?: string | null
+  specialRequest?: string | null
+}
+
+export async function updateReservation(
+  reservationId: string,
+  data: UpdateReservationInput
+) {
   const {
     status,
     partySize,
@@ -340,30 +392,53 @@ export async function updateReservation(reservationId: string, data: any) {
     specialRequest,
   } = data
 
-  const updateData: any = {
-    status,
-    partySize: partySize ? parseInt(partySize) : undefined,
+  if (
+    status &&
+    !Object.values(ReservationStatus).includes(status as ReservationStatus)
+  ) {
+    throw new Error("INVALID_RESERVATION_STATUS")
+  }
+
+  const updateData: Prisma.ReservationUpdateInput = {
+    status: status as ReservationStatus | undefined,
+    partySize: partySize ? Number(partySize) : undefined,
     startTime: startTime ? new Date(startTime) : undefined,
     endTime: endTime ? new Date(endTime) : undefined,
     internalNotes,
     specialRequest,
   }
 
-  // Handle table updates (disconnect existing across junction, add new ones)
-  if (tableIds && tableIds.length > 0) {
-    await prisma.reservationOnTable.deleteMany({
-      where: { reservationId },
-    })
-    updateData.tables = {
-      create: tableIds.map((tid: string) => ({
-        table: { connect: { id: tid } },
-      })),
-    }
-  }
+  return prisma.$transaction(async (tx) => {
+    if (tableIds && tableIds.length > 0) {
+      const reservation = await tx.reservation.findUnique({
+        where: { id: reservationId },
+        select: { restaurantId: true },
+      })
+      if (!reservation) throw new Error("RESERVATION_NOT_FOUND")
 
-  return await prisma.reservation.update({
-    where: { id: reservationId },
-    data: updateData,
+      const uniqueTableIds = [...new Set(tableIds)]
+      const validTableCount = await tx.table.count({
+        where: {
+          id: { in: uniqueTableIds },
+          diningArea: { restaurantId: reservation.restaurantId },
+        },
+      })
+      if (validTableCount !== uniqueTableIds.length) {
+        throw new Error("SPECIFIC_TABLES_INVALID")
+      }
+
+      await tx.reservationOnTable.deleteMany({ where: { reservationId } })
+      updateData.tables = {
+        create: uniqueTableIds.map((tableId) => ({
+          table: { connect: { id: tableId } },
+        })),
+      }
+    }
+
+    return tx.reservation.update({
+      where: { id: reservationId },
+      data: updateData,
+    })
   })
 }
 

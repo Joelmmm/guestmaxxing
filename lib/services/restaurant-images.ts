@@ -48,9 +48,12 @@ export async function getRestaurantImages(restaurantId: string) {
   })
 }
 
-export async function getRestaurantImageById(imageId: string) {
-  return await prisma.restaurantImage.findUnique({
-    where: { id: imageId },
+export async function getRestaurantImageById(
+  imageId: string,
+  restaurantId: string
+) {
+  return await prisma.restaurantImage.findFirst({
+    where: { id: imageId, restaurantId },
   })
 }
 

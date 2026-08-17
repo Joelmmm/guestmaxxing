@@ -2,16 +2,16 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { 
-  DotsThreeVertical, 
-  PencilSimple, 
-  Trash, 
-  Phone, 
-  Envelope, 
+import {
+  DotsThreeVertical,
+  PencilSimple,
+  Trash,
+  Phone,
+  Envelope,
   Calendar,
   Note,
   CaretLeft,
-  CaretRight
+  CaretRight,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { formatInTimeZone } from "date-fns-tz"
@@ -35,18 +35,18 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { GuestDialog } from "./guest-dialog"
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import type { Prisma, Guest } from "@/generated/client"
+import type { Prisma } from "@/generated/client"
 
 export type GuestWithCount = Prisma.GuestGetPayload<{
   include: {
@@ -59,28 +59,40 @@ export type GuestWithCount = Prisma.GuestGetPayload<{
 }>
 
 interface GuestsListProps {
+  restaurantId: string
   guests: GuestWithCount[]
   totalPages: number
   currentPage: number
 }
 
-export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps) {
+export function GuestsList({
+  restaurantId,
+  guests,
+  totalPages,
+  currentPage,
+}: GuestsListProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   const [isDeleting, setIsDeleting] = React.useState(false)
-  const [guestToDelete, setGuestToDelete] = React.useState<GuestWithCount | null>(null)
-  const [editingGuest, setEditingGuest] = React.useState<GuestWithCount | null>(null)
+  const [guestToDelete, setGuestToDelete] =
+    React.useState<GuestWithCount | null>(null)
+  const [editingGuest, setEditingGuest] = React.useState<GuestWithCount | null>(
+    null
+  )
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
 
   async function handleDelete() {
     if (!guestToDelete) return
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/guests/${guestToDelete.id}`, {
-        method: "DELETE",
-      })
+      const response = await fetch(
+        `/api/guests/${guestToDelete.id}?restaurantId=${encodeURIComponent(restaurantId)}`,
+        {
+          method: "DELETE",
+        }
+      )
 
       if (!response.ok) {
         throw new Error("Failed to delete guest")
@@ -106,7 +118,7 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -120,10 +132,15 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
           <TableBody>
             {guests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-48 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="h-48 text-center text-muted-foreground"
+                >
                   <div className="flex flex-col items-center gap-2">
                     <p className="text-lg font-medium">No guests found</p>
-                    <p className="text-sm">Try searching for a different name or email.</p>
+                    <p className="text-sm">
+                      Try searching for a different name or email.
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -136,9 +153,11 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
                         {guest.firstName} {guest.lastName}
                       </span>
                       {guest.notes && (
-                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md w-fit">
+                        <div className="mt-1 flex w-fit items-center gap-1.5 rounded-md bg-secondary/50 px-1.5 py-0.5 text-xs text-muted-foreground">
                           <Note size={12} weight="duotone" />
-                          <span className="truncate max-w-[200px]">{guest.notes}</span>
+                          <span className="max-w-[200px] truncate">
+                            {guest.notes}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -158,32 +177,47 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
                         </div>
                       )}
                       {!guest.email && !guest.phone && (
-                        <span className="text-sm text-muted-foreground italic">No contact info</span>
+                        <span className="text-sm text-muted-foreground italic">
+                          No contact info
+                        </span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="font-normal border-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400">
+                    <Badge
+                      variant="secondary"
+                      className="border-amber-500/10 bg-amber-500/5 font-normal text-amber-600 dark:text-amber-400"
+                    >
                       {guest._count?.reservations || 0} visits
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar size={14} />
-                      <span>{formatInTimeZone(guest.createdAt, "UTC", "MMM d, yyyy")}</span>
+                      <span>
+                        {formatInTimeZone(
+                          guest.createdAt,
+                          "UTC",
+                          "MMM d, yyyy"
+                        )}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted"
+                        >
                           <DotsThreeVertical size={18} weight="bold" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[160px]">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="gap-2"
                           onClick={() => {
                             setEditingGuest(guest)
@@ -193,7 +227,7 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
                           <PencilSimple size={16} />
                           Edit Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="gap-2 text-destructive focus:text-destructive"
                           onClick={() => setGuestToDelete(guest)}
                         >
@@ -242,30 +276,38 @@ export function GuestsList({ guests, totalPages, currentPage }: GuestsListProps)
       )}
 
       {/* Edit Guest Dialog */}
-      <GuestDialog 
-        guest={editingGuest || undefined} 
-        open={isEditDialogOpen} 
-        onOpenChange={setIsEditDialogOpen} 
+      <GuestDialog
+        restaurantId={restaurantId}
+        guest={editingGuest || undefined}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!guestToDelete} onOpenChange={(open) => !open && setGuestToDelete(null)}>
+      <AlertDialog
+        open={!!guestToDelete}
+        onOpenChange={(open) => !open && setGuestToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete <strong>{guestToDelete?.firstName} {guestToDelete?.lastName}</strong> and all their reservation history.
+              This action cannot be undone. This will permanently delete{" "}
+              <strong>
+                {guestToDelete?.firstName} {guestToDelete?.lastName}
+              </strong>{" "}
+              and all their reservation history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
                 handleDelete()
               }}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
             >
               {isDeleting ? "Deleting..." : "Delete Guest"}
             </AlertDialogAction>

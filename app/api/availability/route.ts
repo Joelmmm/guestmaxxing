@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkAvailability } from "@/lib/availability"
 import { availabilitySchema } from "@/lib/validations/availability"
-import { verifyRestaurantAccess } from '@/lib/api-utils'
+import { verifyRestaurantAccess } from "@/lib/api-utils"
 
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams
-    
+
     // Extract query parameters
     const query = {
       restaurantId: searchParams.get("restaurantId") || "",
@@ -20,13 +20,20 @@ export async function GET(req: NextRequest) {
 
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid availability query parameters", details: validation.error.format() },
+        {
+          error: "Invalid availability query parameters",
+          details: validation.error.format(),
+        },
         { status: 400 }
       )
     }
 
-    const access = await verifyRestaurantAccess(validation.data.restaurantId);
-    if (!access.isAuthorized) return access.response as NextResponse;
+    const access = await verifyRestaurantAccess(
+      validation.data.restaurantId,
+      ["owner", "admin", "member"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response as NextResponse
 
     // Run the engine
     const result = await checkAvailability(validation.data)

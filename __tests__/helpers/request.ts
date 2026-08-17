@@ -6,8 +6,8 @@
  *  - Keep `NextRequest` construction DRY.
  *  - Surface error payloads in assertion failure messages automatically.
  */
-import { NextRequest } from "next/server";
-import { expect } from "vitest";
+import { NextRequest } from "next/server"
+import { expect } from "vitest"
 
 // ---------------------------------------------------------------------------
 // Request builders
@@ -18,11 +18,23 @@ export function buildPostRequest(url: string, payload: unknown): NextRequest {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 export function buildGetRequest(url: string): NextRequest {
-  return new NextRequest(url);
+  return new NextRequest(url)
+}
+
+export function buildPatchRequest(url: string, payload: unknown): NextRequest {
+  return new NextRequest(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function buildDeleteRequest(url: string): NextRequest {
+  return new NextRequest(url, { method: "DELETE" })
 }
 
 // ---------------------------------------------------------------------------
@@ -42,10 +54,10 @@ export async function expectOk<T = unknown>(res: Response): Promise<T> {
   if (!res.ok) {
     // Clone so the body can be consumed for the error message without
     // exhausting the original stream (though we won't use res again).
-    const text = await res.clone().text();
-    expect(res.status, `Expected 200 but got ${res.status}: ${text}`).toBe(200);
+    const text = await res.clone().text()
+    expect(res.status, `Expected 200 but got ${res.status}: ${text}`).toBe(200)
   }
-  return res.json() as Promise<T>;
+  return res.json() as Promise<T>
 }
 
 /**
@@ -56,9 +68,9 @@ export async function expectStatus(
   res: Response,
   status: number
 ): Promise<void> {
-  const text = res.status !== status ? await res.clone().text() : "";
+  const text = res.status !== status ? await res.clone().text() : ""
   expect(
     res.status,
     text ? `Expected ${status} but got ${res.status}: ${text}` : undefined
-  ).toBe(status);
+  ).toBe(status)
 }

@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyRestaurantAccess } from '@/lib/api-utils'
-import { diningAreaSchema } from '@/lib/validations/dining-area'
-import { validateBody } from '@/lib/api-utils'
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { verifyRestaurantAccess } from "@/lib/api-utils"
+import { diningAreaSchema } from "@/lib/validations/dining-area"
+import { validateBody } from "@/lib/api-utils"
 
 interface DiningAreaParams {
   params: Promise<{
@@ -13,13 +13,17 @@ interface DiningAreaParams {
 export async function GET(req: Request, { params }: DiningAreaParams) {
   try {
     const { restaurantId } = await params
-    
+
     if (!restaurantId) {
-      return new NextResponse('Restaurant ID is required', { status: 400 })
+      return new NextResponse("Restaurant ID is required", { status: 400 })
     }
 
-    const access = await verifyRestaurantAccess(restaurantId);
-    if (!access.isAuthorized) return access.response;
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin", "member"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response
 
     const diningAreas = await prisma.diningArea.findMany({
       where: { restaurantId },
@@ -34,8 +38,8 @@ export async function GET(req: Request, { params }: DiningAreaParams) {
 
     return NextResponse.json(diningAreas)
   } catch (error) {
-    console.error('[DINING_AREAS_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[DINING_AREAS_GET]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }
 
@@ -44,11 +48,15 @@ export async function POST(req: Request, { params }: DiningAreaParams) {
     const { restaurantId } = await params
 
     if (!restaurantId) {
-      return new NextResponse('Restaurant ID is required', { status: 400 })
+      return new NextResponse("Restaurant ID is required", { status: 400 })
     }
 
-    const access = await verifyRestaurantAccess(restaurantId, ['owner', 'admin']);
-    if (!access.isAuthorized) return access.response;
+    const access = await verifyRestaurantAccess(
+      restaurantId,
+      ["owner", "admin"],
+      req.headers
+    )
+    if (!access.isAuthorized) return access.response
 
     const body = await req.json()
     const validation = validateBody(diningAreaSchema, body)
@@ -69,7 +77,7 @@ export async function POST(req: Request, { params }: DiningAreaParams) {
 
     return NextResponse.json(diningArea)
   } catch (error) {
-    console.error('[DINING_AREAS_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error("[DINING_AREAS_POST]", error)
+    return new NextResponse("Internal Error", { status: 500 })
   }
 }
